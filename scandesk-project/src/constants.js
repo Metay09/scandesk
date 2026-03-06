@@ -8,6 +8,7 @@ export const INITIAL_SETTINGS = {
   vibration: true,
   beep: true,
   allowExport: true,
+  allowImport: true,
   allowClearData: true,
   allowAddField: true,
   allowEditField: true,

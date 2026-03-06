@@ -179,12 +179,14 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
           <button className="btn btn-ghost btn-full" onClick={() => onExport("csv")}><Ic d={I.csv} s={15} /> CSV</button>
         </div>
       )}
-      <div className="export-row">
-        <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} onChange={handleImportFile} />
-        <button className="btn btn-ghost btn-full btn-sm" onClick={() => importRef.current?.click()}>
-          <Ic d={I.upload} s={15} /> Excel / CSV İçe Aktar
-        </button>
-      </div>
+      {settings.allowImport && (
+        <div className="export-row">
+          <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} onChange={handleImportFile} />
+          <button className="btn btn-ghost btn-full btn-sm" onClick={() => importRef.current?.click()}>
+            <Ic d={I.upload} s={15} /> Excel / CSV İçe Aktar
+          </button>
+        </div>
+      )}
       {sel.size > 0 && (
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
           <button className="btn btn-danger btn-full" onClick={() => {

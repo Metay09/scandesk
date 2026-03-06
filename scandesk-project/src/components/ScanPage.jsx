@@ -484,7 +484,16 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
         ) : (
           <span style={{ fontWeight: 800, color: "var(--acc)" }}>{currentShift}</span>
         )}
-        <span style={{ marginLeft: isAdmin ? 0 : "auto", color: "var(--tx3)", fontFamily: "var(--mono)", fontSize: 11 }}>{fmtTime()}</span>
+        <span style={{
+          fontSize: 12,
+          fontWeight: 600,
+          color: "var(--tx)",
+          background: "var(--s2)",
+          border: "1.5px solid var(--brd)",
+          borderRadius: 8,
+          padding: "4px 10px"
+        }}>{fmtDate(nowTs())}</span>
+        <span style={{ color: "var(--tx3)", fontFamily: "var(--mono)", fontSize: 11 }}>{fmtTime()}</span>
       </div>
 
       {/* Vardiya sona erdi uyarısı */}
@@ -524,31 +533,29 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
             <option value="-Boş-" />
             {customerList.map(c => <option key={c} value={c} />)}
           </datalist>
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={() => setCustModal(true)}
-              style={{
-                position: "absolute",
-                right: 8,
-                top: "50%",
-                transform: "translateY(-50%)",
-                width: 28,
-                height: 28,
-                borderRadius: 6,
-                border: "none",
-                background: "var(--inf2)",
-                color: "var(--inf)",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center"
-              }}
-              title="Müşteri yönet"
-            >
-              <Ic d={I.settings} s={14} />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setCustModal(true)}
+            style={{
+              position: "absolute",
+              right: 8,
+              top: "50%",
+              transform: "translateY(-50%)",
+              width: 28,
+              height: 28,
+              borderRadius: 6,
+              border: "none",
+              background: "var(--inf2)",
+              color: "var(--inf)",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center"
+            }}
+            title="Müşteri yönet"
+          >
+            <Ic d={I.settings} s={14} />
+          </button>
         </div>
       </div>
 
@@ -742,31 +749,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
       {/* Son Okutmalar */}
       <div style={{ marginTop: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 6 }}>
-          <div>
-            <div style={{ fontSize: 12, color: 'var(--tx2)', fontWeight: 800 }}>Son Okutmalar</div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{
-              fontSize: 12,
-              fontWeight: 700,
-              color: "var(--inf)",
-              background: "var(--inf2)",
-              border: "1.5px solid var(--inf3)",
-              borderRadius: 8,
-              padding: "4px 10px"
-            }}>{currentShift}</span>
-            <span style={{
-              fontSize: 12,
-              fontWeight: 600,
-              color: "var(--tx)",
-              background: "var(--s2)",
-              border: "1.5px solid var(--brd)",
-              borderRadius: 8,
-              padding: "4px 10px"
-            }}>{fmtDate(nowTs())}</span>
-          </div>
-        </div>
+        <div style={{ fontSize: 12, color: 'var(--tx2)', fontWeight: 800, marginBottom: 6 }}>Son Okutmalar</div>
 
         {(() => {
           const todayNow = fmtDate(nowTs());
