@@ -220,7 +220,7 @@ export default function App() {
       {/* CONTENT */}
       <div className="scroll-area">
         {page === "scan"     && <ScanPage fields={fields} onSave={handleSave} onEdit={handleEdit} records={records} lastSaved={lastSaved} customers={customers} isAdmin={isAdmin} user={user} integration={integration} scanSettings={settings} toast={toast} currentShift={currentShift} setCurrentShift={setCurrentShift} shiftList={settings.shiftList || INITIAL_SETTINGS.shiftList} shiftConfirmed={shiftConfirmed} onShiftConfirm={s => { setCurrentShift(s); setShiftConfirmed(true); }} />}
-        {page === "data"     && <DataPage     fields={fields} records={records} onDelete={handleDelete} onEdit={handleEdit} onExport={handleExport} onImport={handleImport} customers={customers} settings={settings} toast={toast} isAdmin={isAdmin} />}
+        {page === "data"     && <DataPage     fields={fields} records={records} onDelete={handleDelete} onEdit={handleEdit} onExport={handleExport} onImport={handleImport} customers={customers} settings={settings} toast={toast} isAdmin={isAdmin} currentShift={currentShift} />}
         {page === "report"   && <ReportPage   records={records} fields={fields} />}
         {page === "fields"   && <FieldsPage   fields={fields} setFields={setFields} isAdmin={isAdmin} settings={settings} />}
         {page === "users"    && isAdmin && <UsersPage users={users} setUsers={setUsers} currentUser={user} toast={toast} />}

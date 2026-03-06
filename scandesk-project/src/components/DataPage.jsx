@@ -4,7 +4,7 @@ import { Ic, I } from "./Icon";
 import EditRecordModal from "./EditRecordModal";
 import { genId } from "../constants";
 
-export default function DataPage({ fields, records, onDelete, onEdit, onExport, onImport, customers, settings, toast, isAdmin }) {
+export default function DataPage({ fields, records, onDelete, onEdit, onExport, onImport, customers, settings, toast, isAdmin, currentShift }) {
   const [q, setQ]           = useState("");
   const [grouped, setGrouped] = useState(true);
   const [editRec, setEditRec] = useState(null);
@@ -75,9 +75,11 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
   };
 
   const allF = [{ id: "barcode", label: "Barkod", type: "Metin" }, ...fields.filter(f => f.id !== "barcode")];
-  const allShifts = [...new Set(records.map(r => r.shift).filter(Boolean))].sort();
-  const allUsers  = [...new Set(records.map(r => r.scanned_by_username).filter(Boolean))].sort();
-  const filtered = records.filter(r => {
+  // Non-admin users only see records from their own active shift
+  const visibleRecords = isAdmin ? records : records.filter(r => r.shift === currentShift);
+  const allShifts = [...new Set(visibleRecords.map(r => r.shift).filter(Boolean))].sort();
+  const allUsers  = [...new Set(visibleRecords.map(r => r.scanned_by_username).filter(Boolean))].sort();
+  const filtered = visibleRecords.filter(r => {
     if (shiftFilter !== "all" && r.shift !== shiftFilter) return false;
     if (dateFilter && r.date !== dateFilter) return false;
     if (userFilter !== "all" && r.scanned_by_username !== userFilter) return false;
@@ -126,10 +128,10 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
   return (
     <div className="page">
       <div className="stats-row">
-        <div className="stat"><div className="stat-val" style={{ color: "var(--acc)" }}>{records.length}</div><div className="stat-lbl">Kayıt</div></div>
-        <div className="stat"><div className="stat-val" style={{ color: "var(--ok)" }}>{new Set(records.map(r => r.barcode)).size}</div><div className="stat-lbl">Benzersiz</div></div>
-        <div className="stat"><div className="stat-val" style={{ color: "var(--inf)" }}>{new Set(records.map(r => r.customer).filter(Boolean)).size}</div><div className="stat-lbl">Müşteri</div></div>
-        <div className="stat"><div className="stat-val" style={{ color: "var(--pur)" }}>{new Set(records.map(r => r.scanned_by).filter(Boolean)).size}</div><div className="stat-lbl">Personel</div></div>
+        <div className="stat"><div className="stat-val" style={{ color: "var(--acc)" }}>{visibleRecords.length}</div><div className="stat-lbl">Kayıt</div></div>
+        <div className="stat"><div className="stat-val" style={{ color: "var(--ok)" }}>{new Set(visibleRecords.map(r => r.barcode)).size}</div><div className="stat-lbl">Benzersiz</div></div>
+        <div className="stat"><div className="stat-val" style={{ color: "var(--inf)" }}>{new Set(visibleRecords.map(r => r.customer).filter(Boolean)).size}</div><div className="stat-lbl">Müşteri</div></div>
+        <div className="stat"><div className="stat-val" style={{ color: "var(--pur)" }}>{new Set(visibleRecords.map(r => r.scanned_by).filter(Boolean)).size}</div><div className="stat-lbl">Personel</div></div>
       </div>
 
       {settings.allowExport && (
@@ -163,14 +165,16 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
           <span className="srch-ico"><Ic d={I.search} s={16} /></span>
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="Ara..." />
         </div>
-        <select
-          value={shiftFilter}
-          onChange={e => setShiftFilter(e.target.value)}
-          style={{ height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: 600, flexShrink: 0 }}
-        >
-          <option value="all">Tüm Vardiyalar</option>
-          {allShifts.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
+        {isAdmin && (
+          <select
+            value={shiftFilter}
+            onChange={e => setShiftFilter(e.target.value)}
+            style={{ height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: 600, flexShrink: 0 }}
+          >
+            <option value="all">Tüm Vardiyalar</option>
+            {allShifts.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        )}
         <input
           type="date"
           value={dateFilter}
@@ -188,12 +192,12 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
             {allUsers.map(u => <option key={u} value={u}>{u}</option>)}
           </select>
         )}
-        {(shiftFilter !== "all" || dateFilter || userFilter !== "all") && (
+        {(isAdmin && shiftFilter !== "all" || dateFilter || userFilter !== "all") && (
           <button
             className="btn btn-ghost btn-sm"
             style={{ height: 40, flexShrink: 0 }}
             title="Filtreleri temizle"
-            onClick={() => { setShiftFilter("all"); setDateFilter(""); setUserFilter("all"); }}
+            onClick={() => { if (isAdmin) setShiftFilter("all"); setDateFilter(""); setUserFilter("all"); }}
           >
             ✕
           </button>

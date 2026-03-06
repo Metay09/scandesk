@@ -523,13 +523,17 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
             >
               <Ic d={I.upload} s={13} /> Devral
             </button>
-            <select
-              value={currentShift}
-              onChange={e => setCurrentShift(e.target.value)}
-              style={{ height: 26, borderRadius: 10, padding: '0 8px', background: 'var(--s2)', color: 'var(--tx)', border: '1.5px solid var(--brd)', fontSize: 11, fontWeight: 700 }}
-            >
-              {shiftList.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+            {isAdmin ? (
+              <select
+                value={currentShift}
+                onChange={e => setCurrentShift(e.target.value)}
+                style={{ height: 26, borderRadius: 10, padding: '0 8px', background: 'var(--s2)', color: 'var(--tx)', border: '1.5px solid var(--brd)', fontSize: 11, fontWeight: 700 }}
+              >
+                {shiftList.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            ) : (
+              <span className="chip" style={{ fontWeight: 700, fontSize: 11 }}>{currentShift}</span>
+            )}
             <span className="chip">{fmtDate(nowTs())}</span>
           </div>
         </div>
