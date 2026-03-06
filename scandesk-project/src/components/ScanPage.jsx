@@ -37,8 +37,9 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
   const { autoSave, addDetailAfterScan, vibration, beep, recentLimit = 10 } = scanSettings;
 
-  // Aktif vardiya: kayıt saatine göre otomatik hesaplanır
-  const currentShift = getCurrentShift();
+  // Admin: vardiya seçebilir; normal kullanıcı: saate göre otomatik
+  const [adminShift, setAdminShift] = useState(() => getCurrentShift());
+  const currentShift = isAdmin ? adminShift : getCurrentShift();
 
   useEffect(() => {
     if (customerList.length && !customer) setCustomer(customerList[0]);
@@ -211,7 +212,8 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     const now = new Date();
     const extraFields = fields.filter(f => f.id !== "barcode");
     const dateStr = fmtDate(now);
-    const shift = getCurrentShift(); // kayıt saatine göre otomatik vardiya
+    // Admin: seçilen vardiyayı kullan; normal kullanıcı: saate göre otomatik
+    const shift = isAdmin ? adminShift : getCurrentShift();
     const row = {
       id: genId(), timestamp: now.toISOString(), date: dateStr, time: fmtTime(now),
       barcode: bc, customer: customer || "",
@@ -238,7 +240,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
       if (integration.type === "supabase") supabaseInsert(integration.supabase, { ...row, id: undefined }).catch(e => toast("Supabase hatası: " + e.message, "var(--err)"));
       else sheetsInsert(integration.gsheets, headers, rowArr).catch(e => toast("Sheets hatası: " + e.message, "var(--err)"));
     }
-  }, [customer, extras, fields, user, onSave, scheduleFocus, vibration, beep, integration, toast, records]);
+  }, [customer, extras, fields, user, onSave, scheduleFocus, vibration, beep, integration, toast, records, isAdmin, adminShift]);
 
   const doSave = useCallback(() => {
     if (pendingBc) doSaveCode(pendingBc, extras);
@@ -247,7 +249,8 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
   const copyFromShift = useCallback((sourceShift, selectedIds) => {
     const todayStr = fmtDate();
-    const targetShift = getCurrentShift(); // devralınan kayıtlar da şu anki saate göre vardiya alır
+    // Admin: seçilen vardiyaya kopyalar; normal kullanıcı: saate göre otomatik
+    const targetShift = isAdmin ? adminShift : getCurrentShift();
     const selectedSet = new Set(selectedIds);
     const currentBarcodes = new Set(
       (records || []).filter(r => r.shift === targetShift && r.date === todayStr).map(r => r.barcode)
@@ -278,7 +281,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     } else {
       toast("Kopyalanacak kayıt bulunamadı", "var(--acc)");
     }
-  }, [records, onSave, toast]);
+  }, [records, onSave, toast, isAdmin, adminShift]);
 
   const handleKey = e => {
     if (e.key !== "Enter") return;
@@ -296,12 +299,28 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
   return (
     <div className="page">
-      {/* Aktif Vardiya Bilgisi — bilgilendirme amaçlı */}
+      {/* Vardiya Bilgisi — admin seçebilir, kullanıcı sadece görür */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, padding: "7px 12px", background: "var(--card)", border: "1.5px solid var(--brd)", borderRadius: "var(--r)", fontSize: 12 }}>
         <Ic d={I.fields} s={14} />
-        <span style={{ color: "var(--tx2)", fontWeight: 600 }}>Aktif Vardiya:</span>
-        <span style={{ fontWeight: 800, color: "var(--acc)" }}>{currentShift}</span>
-        <span style={{ marginLeft: "auto", color: "var(--tx3)", fontFamily: "var(--mono)", fontSize: 11 }}>{fmtTime()}</span>
+        <span style={{ color: "var(--tx2)", fontWeight: 600 }}>Vardiya:</span>
+        {isAdmin ? (
+          <div style={{ display: "flex", gap: 4, flex: 1 }}>
+            {FIXED_SHIFTS.map(s => (
+              <button
+                key={s.label}
+                type="button"
+                className={`btn btn-sm ${adminShift === s.label ? "btn-info" : "btn-ghost"}`}
+                style={{ flex: 1, fontSize: 12, fontWeight: adminShift === s.label ? 800 : 500 }}
+                onClick={() => setAdminShift(s.label)}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <span style={{ fontWeight: 800, color: "var(--acc)" }}>{currentShift}</span>
+        )}
+        <span style={{ marginLeft: isAdmin ? 0 : "auto", color: "var(--tx3)", fontFamily: "var(--mono)", fontSize: 11 }}>{fmtTime()}</span>
       </div>
 
       {/* Müşteri */}
