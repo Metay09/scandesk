@@ -98,19 +98,44 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
   /* ── Camera ── */
   const startCamera = async () => {
-    if (!navigator.mediaDevices?.getUserMedia) { toast("Bu tarayıcı kamera erişimini desteklemiyor.", "var(--err)"); return; }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      toast("Bu tarayıcı kamera erişimini desteklemiyor.", "var(--err)");
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" }
+        video: {
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
       });
       streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        // Wait for video to be ready
+        await new Promise((resolve) => {
+          if (videoRef.current) {
+            videoRef.current.onloadedmetadata = () => {
+              videoRef.current?.play().then(resolve).catch(resolve);
+            };
+          } else {
+            resolve();
+          }
+        });
+      }
       trackRef.current = stream.getVideoTracks ? (stream.getVideoTracks()[0] || null) : null;
       setTorchOn(false);
       setCamActive(true);
-      if (detRef.current) requestAnimationFrame(detectFrame);
-      else toast("Bu tarayıcı otomatik barkod tespitini desteklemiyor. Manuel giriş yapın.", "var(--acc)");
+
+      if (detRef.current) {
+        // Start detection loop
+        rafRef.current = requestAnimationFrame(detectFrame);
+      } else {
+        toast("Bu tarayıcı otomatik barkod tespitini desteklemiyor. Manuel giriş yapın.", "var(--acc)");
+      }
     } catch (e) {
+      console.error('Camera error:', e);
       toast("Kamera izni alınamadı: " + e.message, "var(--err)");
     }
   };
@@ -132,22 +157,46 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   // ZXing fallback
   useEffect(() => {
     if (!camActive) return;
-    if (detRef.current) return;
+    if (detRef.current) return;  // Use native BarcodeDetector if available
+
     const reader = new BrowserMultiFormatReader();
     let active = true;
+
     (async () => {
       try {
         if (!videoRef.current) return;
         await reader.decodeFromVideoDevice(undefined, videoRef.current, (res, err) => {
           if (!active) return;
-          if (res) onBarcodeRef.current(res.getText());
+          if (res) {
+            const code = res.getText();
+            console.log('ZXing detected barcode:', code);
+
+            // Process barcode similar to native detector
+            setScanPulse(true);
+            setTimeout(() => setScanPulse(false), 220);
+
+            if (!bulkMode) {
+              stopCamera();
+            }
+
+            if (addDetailAfterScan) {
+              setPendingBc(code);
+              setBarcode(code);
+            } else {
+              onBarcodeRef.current(code);
+            }
+          }
         });
       } catch (e) {
-        // ignore
+        console.warn('ZXing error:', e);
       }
     })();
-    return () => { active = false; try { reader.reset(); } catch {} };
-  }, [camActive]);
+
+    return () => {
+      active = false;
+      try { reader.reset(); } catch {}
+    };
+  }, [camActive, bulkMode, addDetailAfterScan]);
 
   const detectFrame = async () => {
     if (!videoRef.current || !detRef.current || !streamRef.current) return;
@@ -157,7 +206,12 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
         const code = barcodes[0].rawValue;
         setScanPulse(true);
         setTimeout(() => setScanPulse(false), 220);
-        if (!bulkMode) stopCamera();
+
+        // Only stop camera in non-bulk mode
+        if (!bulkMode) {
+          stopCamera();
+        }
+
         // Show detail form if setting is enabled, otherwise process barcode directly
         if (addDetailAfterScan) {
           setPendingBc(code);
@@ -165,9 +219,17 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
         } else {
           onBarcode(code);
         }
+
+        // In bulk mode, continue scanning
+        if (bulkMode) {
+          rafRef.current = requestAnimationFrame(detectFrame);
+        }
         return;
       }
-    } catch {}
+    } catch (err) {
+      // Log error for debugging but continue scanning
+      console.warn('Barcode detection error:', err);
+    }
     rafRef.current = requestAnimationFrame(detectFrame);
   };
 
