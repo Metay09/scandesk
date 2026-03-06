@@ -43,6 +43,8 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
         labelMap["tarih"] = "date";
         labelMap["saat"] = "time";
         labelMap["vardiya"] = "shift";
+        labelMap["vardiya id"] = "shiftId";
+        labelMap["shiftid"] = "shiftId";
         const imported = rows.map(row => {
           const rec = { id: genId(), synced: false };
           Object.entries(row).forEach(([col, val]) => {

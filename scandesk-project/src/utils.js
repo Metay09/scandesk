@@ -13,6 +13,17 @@ export const fmtTime = (ts) => {
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 };
 
+// Returns a stable, deterministic ID for a shift: "YYYY-MM-DD_N"
+// N is the 1-indexed position of shiftLabel inside shiftList (0 if not found)
+export const makeShiftId = (date, shiftLabel, shiftList) => {
+  const list = Array.isArray(shiftList) && shiftList.length
+    ? shiftList
+    : ["00:00/08:00", "08:00/16:00", "16:00/24:00"];
+  const idx = list.indexOf(shiftLabel);
+  const no  = idx >= 0 ? idx + 1 : 0;
+  return `${date}_${no}`;
+};
+
 export const getDefaultShift = (shiftList) => {
   const list = Array.isArray(shiftList) && shiftList.length ? shiftList : ["00:00/08:00","08:00/16:00","16:00/24:00"];
   const h = new Date().getHours();

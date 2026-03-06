@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import { Ic, I } from "./Icon";
 import { genId } from "../constants";
-import { fmtDate, fmtTime, nowTs, playBeep } from "../utils";
+import { fmtDate, fmtTime, nowTs, playBeep, makeShiftId } from "../utils";
 import { supabaseInsert, sheetsInsert } from "../services/integrations";
 import EditRecordModal from "./EditRecordModal";
 import CustomerModal from "./CustomerModal";
@@ -207,10 +207,13 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     }
     const now = new Date();
     const extraFields = fields.filter(f => f.id !== "barcode");
+    const dateStr = fmtDate(now);
     const row = {
-      id: genId(), timestamp: now.toISOString(), date: fmtDate(now), time: fmtTime(now),
+      id: genId(), timestamp: now.toISOString(), date: dateStr, time: fmtTime(now),
       barcode: bc, customer: customer || "",
-      shift: currentShift || "", inheritedFromShift: "",
+      shift: currentShift || "",
+      shiftId: makeShiftId(dateStr, currentShift, shiftList),
+      inheritedFromShift: "",
       scanned_by: user.name, scanned_by_username: user.username, synced: false,
     };
     extraFields.forEach(f => {
@@ -252,14 +255,16 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
       !currentBarcodes.has(r.barcode)
     );
     const now = new Date();
+    const copyDateStr = fmtDate(now);
     toCopy.forEach(r => {
       onSave({
         ...r,
         id: genId(),
         timestamp: now.toISOString(),
-        date: fmtDate(now),
+        date: copyDateStr,
         time: fmtTime(now),
         shift: currentShift,
+        shiftId: makeShiftId(copyDateStr, currentShift, shiftList),
         inheritedFromShift: sourceShift,
         synced: false,
       });
