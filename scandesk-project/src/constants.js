@@ -3,12 +3,10 @@ export const INITIAL_USERS = [
 ];
 
 export const INITIAL_SETTINGS = {
-  shiftList: ["00:00/08:00","08:00/16:00","16:00/24:00"],
   autoSave: true,
   addDetailAfterScan: false,
   vibration: true,
   beep: true,
-  frontCamera: false,
   allowExport: true,
   allowClearData: true,
   allowAddField: true,

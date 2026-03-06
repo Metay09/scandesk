@@ -13,13 +13,51 @@ export const fmtTime = (ts) => {
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 };
 
-export const getDefaultShift = (shiftList) => {
-  const list = Array.isArray(shiftList) && shiftList.length ? shiftList : ["00:00/08:00","08:00/16:00","16:00/24:00"];
-  const h = new Date().getHours();
-  if (h < 8) return list[0];
-  if (h < 16) return list[1] ?? list[0];
-  return list[2] ?? list[list.length-1];
+// Sabit vardiyalar — değiştirilemez
+// 12-8 : 00:00-07:59, 8-4 : 08:00-15:59, 4-12 : 16:00-23:59
+export const FIXED_SHIFTS = [
+  { label: "12-8", start: 0,  end: 8  },
+  { label: "8-4",  start: 8,  end: 16 },
+  { label: "4-12", start: 16, end: 24 },
+];
+
+// Saate göre vardiya etiketini döner (0-23)
+export const getShiftByHour = (h) => {
+  if (h < 8)  return "12-8";
+  if (h < 16) return "8-4";
+  return "4-12";
 };
+
+// Şu anki saate göre aktif vardiyayı döner
+export const getCurrentShift = () => getShiftByHour(new Date().getHours());
+
+export async function hashPassword(plain, saltHex) {
+  const salt = saltHex
+    ? new Uint8Array(saltHex.match(/.{2}/g).map(b => parseInt(b, 16)))
+    : crypto.getRandomValues(new Uint8Array(16));
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(plain), "PBKDF2", false, ["deriveBits"]
+  );
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", hash: "SHA-256", salt, iterations: 100000 },
+    keyMaterial, 256
+  );
+  const hashHex  = Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, "0")).join("");
+  const saltHexOut = Array.from(salt).map(b => b.toString(16).padStart(2, "0")).join("");
+  return `pbkdf2:${saltHexOut}:${hashHex}`;
+}
+
+export async function verifyPassword(plain, stored) {
+  if (!stored) return false;
+  if (stored.startsWith("pbkdf2:")) {
+    const parts = stored.split(":");
+    const saltHex = parts[1];
+    const recomputed = await hashPassword(plain, saltHex);
+    return recomputed === stored;
+  }
+  // legacy: plaintext stored before hashing was introduced
+  return plain === stored;
+}
 
 export function playBeep() {
   try {

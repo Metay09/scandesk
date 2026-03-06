@@ -3,7 +3,7 @@ import { Ic, I } from "./Icon";
 import Toggle from "./Toggle";
 import PasswordInput from "./PasswordInput";
 
-export default function SettingsPage({ settings, setSettings, integration, setIntegration, isAdmin, onClearData, onDeleteRange, records, toast }) {
+export default function SettingsPage({ settings, setSettings, integration, setIntegration, isAdmin, onClearData, onDeleteRange, records, toast, user, onLogout, theme, onToggleTheme }) {
   const set = (k, v) => setSettings(p => ({ ...p, [k]: v }));
   const [sbOpen, setSbOpen] = useState(false);
   const [gsOpen, setGsOpen] = useState(false);
@@ -31,8 +31,7 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
         <Row icon={I.edit} label="Taramadan Sonra Detay Ekle" sub="Önce barkod taranır, sonra diğer alanlar doldurulur"><Toggle value={settings.addDetailAfterScan} onChange={v => set("addDetailAfterScan", v)} /></Row>
         <Row icon={I.vib} label="Titreşim"><Toggle value={settings.vibration} onChange={v => set("vibration", v)} /></Row>
         <Row icon={I.bell} label="Bip Sesi"><Toggle value={settings.beep} onChange={v => set("beep", v)} /></Row>
-        <Row icon={I.camera} label="Ön Kamera" sub="Kamera açılırken selfie kamerayı kullan"><Toggle value={settings.frontCamera} onChange={v => set("frontCamera", v)} /></Row>
-        <Row icon={I.data} label="Son Okutulanlar" sub="Tarama ekranında gösterilecek kayıt sayısı">
+        <Row icon={I.data} label="Son Okutmalar" sub="Aktif vardiyada gösterilecek son kayıt sayısı">
           <select
             value={String(settings.recentLimit ?? 10)}
             onChange={e => set('recentLimit', parseInt(e.target.value, 10))}
@@ -77,8 +76,6 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
           <Row icon={I.edit}  label="Alan Düzenlemeye İzin Ver"><Toggle value={settings.allowEditField}   onChange={v => set("allowEditField", v)} /></Row>
           <Row icon={I.del}   label="Alan Silmeye İzin Ver"><Toggle value={settings.allowDeleteField}  onChange={v => set("allowDeleteField", v)} /></Row>
         </div>
-
-
         <div className="section-hd">Veri Temizleme (Aralık)</div>
         <div className="s-card">
           <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 10 }}>
@@ -174,6 +171,25 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
           </>
         )}
       </>}
+
+      <div className="section-hd">Hesap</div>
+      <div className="s-card">
+        {user && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderBottom: "1px solid var(--brd)" }}>
+            <div className="avatar" style={{ width: 32, height: 32, fontSize: 14, flexShrink: 0 }}>{(user.name || user.username || "?")[0].toUpperCase()}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>{user.name}</div>
+              <div style={{ fontSize: 11, color: "var(--tx2)" }}>@{user.username} · {user.role === "admin" ? "Admin" : "Kullanıcı"}</div>
+            </div>
+          </div>
+        )}
+        <Row icon={theme === "dark" ? I.sun : I.moon} label={theme === "dark" ? "Açık Temaya Geç" : "Koyu Temaya Geç"} sub="Uygulama görünümünü değiştir" onClick={onToggleTheme}>
+          <Ic d={I.chevR} s={14} />
+        </Row>
+        <Row icon={I.logout} label="Çıkış Yap" sub="Oturumu kapat" onClick={onLogout}>
+          <Ic d={I.chevR} s={14} />
+        </Row>
+      </div>
     </div>
   );
 }

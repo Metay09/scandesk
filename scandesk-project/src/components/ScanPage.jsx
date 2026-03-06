@@ -2,12 +2,13 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import { Ic, I } from "./Icon";
 import { genId } from "../constants";
-import { fmtDate, fmtTime, nowTs, playBeep } from "../utils";
+import { fmtDate, fmtTime, nowTs, playBeep, getCurrentShift, FIXED_SHIFTS } from "../utils";
 import { supabaseInsert, sheetsInsert } from "../services/integrations";
 import EditRecordModal from "./EditRecordModal";
 import CustomerModal from "./CustomerModal";
+import ShiftInheritModal from "./ShiftInheritModal";
 
-export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdmin, user, integration, scanSettings, toast, currentShift, setCurrentShift, shiftList }) {
+export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdmin, user, integration, scanSettings, toast, shiftExpired = false }) {
   const customerList = Array.isArray(customers) ? customers : (customers?.list || []);
   const today = fmtDate();
   const inputRef  = useRef(null);
@@ -31,9 +32,14 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const [bulkMode, setBulkMode]   = useState(false);
   const [bulkList, setBulkList]   = useState([]);
   const [editDupRec, setEditDupRec] = useState(null);
+  const [inheritModal, setInheritModal] = useState(false);
   const recentRef = useRef(new Map());
 
-  const { autoSave, addDetailAfterScan, vibration, beep, frontCamera, recentLimit = 10 } = scanSettings;
+  const { autoSave, addDetailAfterScan, vibration, beep, recentLimit = 10 } = scanSettings;
+
+  // Admin: vardiya seçebilir; normal kullanıcı: saate göre otomatik
+  const [adminShift, setAdminShift] = useState(() => getCurrentShift());
+  const currentShift = isAdmin ? adminShift : getCurrentShift();
 
   useEffect(() => {
     if (customerList.length && !customer) setCustomer(customerList[0]);
@@ -66,7 +72,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     if (!navigator.mediaDevices?.getUserMedia) { toast("Bu tarayıcı kamera erişimini desteklemiyor.", "var(--err)"); return; }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: frontCamera ? "user" : "environment" }
+        video: { facingMode: "environment" }
       });
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
@@ -161,6 +167,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   };
 
   const onBarcode = (code) => {
+    if (shiftExpired && !isAdmin) { toast("Vardiya sona erdi — okutma devre dışı", "var(--err)"); return false; }
     const bc = normalizeCode(code);
     const chk = canAcceptCode(bc);
     if (!chk.ok) {
@@ -197,7 +204,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     const ex = findExistingRec(bc);
     if (ex) {
       setEditDupRec(ex);
-      toast("Bu barkod zaten kayıtlı. İstersen düzenle.", "var(--err)");
+      toast("⚠ Bu barkod bu vardiyada zaten var", "var(--err)");
       if (vibration && navigator.vibrate) navigator.vibrate([120, 80, 120]);
       if (beep) playBeep();
       scheduleFocus();
@@ -205,10 +212,14 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     }
     const now = new Date();
     const extraFields = fields.filter(f => f.id !== "barcode");
+    const dateStr = fmtDate(now);
+    // Admin: seçilen vardiyayı kullan; normal kullanıcı: saate göre otomatik
+    const shift = isAdmin ? adminShift : getCurrentShift();
     const row = {
-      id: genId(), timestamp: now.toISOString(), date: fmtDate(now), time: fmtTime(now),
+      id: genId(), timestamp: now.toISOString(), date: dateStr, time: fmtTime(now),
       barcode: bc, customer: customer || "",
-      shift: currentShift || "", inheritedFromShift: "",
+      shift,
+      inheritedFromShift: "",
       scanned_by: user.name, scanned_by_username: user.username, synced: false,
     };
     extraFields.forEach(f => {
@@ -230,12 +241,48 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
       if (integration.type === "supabase") supabaseInsert(integration.supabase, { ...row, id: undefined }).catch(e => toast("Supabase hatası: " + e.message, "var(--err)"));
       else sheetsInsert(integration.gsheets, headers, rowArr).catch(e => toast("Sheets hatası: " + e.message, "var(--err)"));
     }
-  }, [customer, extras, fields, user, onSave, scheduleFocus, vibration, beep, integration, toast, currentShift, records]);
+  }, [customer, extras, fields, user, onSave, scheduleFocus, vibration, beep, integration, toast, records, isAdmin, adminShift]);
 
   const doSave = useCallback(() => {
     if (pendingBc) doSaveCode(pendingBc, extras);
     else doSaveCode(barcode, extras);
   }, [pendingBc, barcode, extras, doSaveCode]);
+
+  const copyFromShift = useCallback((sourceShift, selectedIds) => {
+    const todayStr = fmtDate();
+    // Admin: seçilen vardiyaya kopyalar; normal kullanıcı: saate göre otomatik
+    const targetShift = isAdmin ? adminShift : getCurrentShift();
+    const selectedSet = new Set(selectedIds);
+    const currentBarcodes = new Set(
+      (records || []).filter(r => r.shift === targetShift && r.date === todayStr).map(r => r.barcode)
+    );
+    const toCopy = (records || []).filter(r =>
+      r.shift === sourceShift &&
+      r.date === todayStr &&
+      selectedSet.has(r.id) &&
+      !currentBarcodes.has(r.barcode)
+    );
+    const now = new Date();
+    const copyDateStr = fmtDate(now);
+    toCopy.forEach(r => {
+      onSave({
+        ...r,
+        id: genId(),
+        timestamp: now.toISOString(),
+        date: copyDateStr,
+        time: fmtTime(now),
+        shift: targetShift,
+        inheritedFromShift: sourceShift,
+        synced: false,
+      });
+    });
+    setInheritModal(false);
+    if (toCopy.length > 0) {
+      toast(`✓ ${toCopy.length} kayıt ${sourceShift} vardiyasından kopyalandı`, "var(--ok)");
+    } else {
+      toast("Kopyalanacak kayıt bulunamadı", "var(--acc)");
+    }
+  }, [records, onSave, toast, isAdmin, adminShift]);
 
   const handleKey = e => {
     if (e.key !== "Enter") return;
@@ -253,6 +300,41 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
   return (
     <div className="page">
+      {/* Vardiya Bilgisi — admin seçebilir, kullanıcı sadece görür */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, padding: "7px 12px", background: "var(--card)", border: "1.5px solid var(--brd)", borderRadius: "var(--r)", fontSize: 12 }}>
+        <Ic d={I.fields} s={14} />
+        <span style={{ color: "var(--tx2)", fontWeight: 600 }}>Vardiya:</span>
+        {isAdmin ? (
+          <div style={{ display: "flex", gap: 4, flex: 1 }}>
+            {FIXED_SHIFTS.map(s => (
+              <button
+                key={s.label}
+                type="button"
+                className={`btn btn-sm ${adminShift === s.label ? "btn-info" : "btn-ghost"}`}
+                style={{ flex: 1, fontSize: 12, fontWeight: adminShift === s.label ? 800 : 500 }}
+                onClick={() => setAdminShift(s.label)}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <span style={{ fontWeight: 800, color: "var(--acc)" }}>{currentShift}</span>
+        )}
+        <span style={{ marginLeft: isAdmin ? 0 : "auto", color: "var(--tx3)", fontFamily: "var(--mono)", fontSize: 11 }}>{fmtTime()}</span>
+      </div>
+
+      {/* Vardiya sona erdi uyarısı */}
+      {shiftExpired && !isAdmin && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 8, marginBottom: 8,
+          padding: "10px 14px", background: "var(--err)", borderRadius: "var(--r)",
+          color: "#fff", fontSize: 13, fontWeight: 700
+        }}>
+          <Ic d={I.lock} s={16} /> Vardiyanız sona erdi. Okutma devre dışı — verilerinizi dışa aktarabilirsiniz.
+        </div>
+      )}
+
       {/* Müşteri */}
       <div className="cust-bar">
         <Ic d={I.group} s={15} />
@@ -282,12 +364,14 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
               {bulkMode ? <div className="cam-pill cam-pill-info">Toplu Mod</div> : <div className="cam-pill">Tekli</div>}
             </div>
             <div className="cam-top-right">
-              <button
-                type="button"
-                className="cam-ic"
-                onClick={() => toggleTorch()}
-                title="Flaş"
-              >⚡</button>
+              {torchSupported && (
+                <button
+                  type="button"
+                  className="cam-ic"
+                  onClick={() => toggleTorch()}
+                  title="Flaş"
+                >⚡</button>
+              )}
               <button type="button" className="cam-ic" onClick={stopCamera} title="Kapat">✕</button>
             </div>
           </div>
@@ -307,7 +391,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
       )}
       <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
         {!camActive
-          ? <button type="button" className="btn btn-ghost btn-full btn-sm" onClick={startCamera}><Ic d={I.camera} s={16} /> Kamerayı Aç</button>
+          ? <button type="button" className="btn btn-ghost btn-full btn-sm" onClick={startCamera} disabled={shiftExpired && !isAdmin}><Ic d={I.camera} s={16} /> Kamerayı Aç</button>
           : <button type="button" className="btn btn-danger btn-full btn-sm" onClick={stopCamera}><Ic d={I.camOff} s={16} /> Kapat</button>}
       </div>
 
@@ -343,7 +427,8 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
               value={barcode}
               onChange={e => setBarcode(e.target.value)}
               onKeyDown={handleKey}
-              placeholder="Barkod okutun veya girin..."
+              placeholder={shiftExpired && !isAdmin ? "Vardiya sona erdi — okutma devre dışı" : "Barkod okutun veya girin..."}
+              disabled={shiftExpired && !isAdmin}
               autoComplete="off" autoCorrect="off"
               autoCapitalize="none" spellCheck={false} inputMode="text"
             />
@@ -392,43 +477,6 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
             </div>
           )}
 
-          {/* Bu vardiya okutulanlar */}
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 6 }}>
-              <div style={{ fontSize: 12, color: 'var(--tx2)', fontWeight: 800 }}>Bu Vardiya Okutulanlar</div>
-              <div className="row" style={{ gap: 8 }}>
-                <span className="chip">{currentShift}</span>
-                <span className="chip">{fmtDate(nowTs())}</span>
-              </div>
-            </div>
-
-            {(() => {
-              const todayNow = fmtDate(nowTs());
-              const all = (records || []).filter(r => r.shift === currentShift && r.date === todayNow).slice().reverse();
-              const lim = scanSettings.recentLimit;
-              const view = (lim === 0 || lim === "0" || lim === "full") ? all : all.slice(0, Number(lim || 10));
-              return (
-                <div style={{ maxHeight: 220, overflow: 'auto', border: '1.5px solid var(--brd)', borderRadius: 'var(--r)', padding: 8, background: 'var(--card)' }}>
-                  {view.length === 0 ? (
-                    <div style={{ color: 'var(--tx3)', fontSize: 12 }}>Henüz kayıt yok</div>
-                  ) : (
-                    view.map((r, i) => (
-                      <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 4px', borderBottom: i === view.length - 1 ? 'none' : '1px solid var(--brd)' }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div className="bc" style={{ fontWeight: 900 }}>{r.barcode}</div>
-                          <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 2 }}>
-                            {(r.scanned_by || '—')} · {(r.customer || '—')} &nbsp; {r.time || ''}
-                          </div>
-                        </div>
-                        <button className="btn btn-sm" style={{ height: 28 }} onClick={() => setEditDupRec(r)}><Ic d={I.edit} s={14} /> Düzenle</button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              );
-            })()}
-          </div>
-
           {/* Extra fields (visible only if no addDetailAfterScan) */}
           {!addDetailAfterScan && extraFields.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 10 }}>
@@ -463,7 +511,64 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
         {integration.active && <span style={{ marginLeft: "auto", opacity: .7, fontSize: 11 }}>→ {integration.type === "supabase" ? "Supabase" : "Sheets"}</span>}
       </div>
 
+      {/* Son Okutmalar */}
+      <div style={{ marginTop: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 6 }}>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--tx2)', fontWeight: 800 }}>Son Okutmalar</div>
+            {currentShift && <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: 2 }}>{currentShift}</div>}
+          </div>
+          <div className="row" style={{ gap: 8 }}>
+            <button
+              className="btn btn-ghost btn-sm"
+              style={{ height: 26, fontSize: 11 }}
+              onClick={() => setInheritModal(true)}
+              title="Önceki vardiyadan kayıt kopyala"
+            >
+              <Ic d={I.upload} s={13} /> Devral
+            </button>
+            <span className="chip" style={{ fontWeight: 700, fontSize: 11 }}>{currentShift}</span>
+            <span className="chip">{fmtDate(nowTs())}</span>
+          </div>
+        </div>
+
+        {(() => {
+          const todayNow = fmtDate(nowTs());
+          const all = (records || []).filter(r => r.shift === currentShift && r.date === todayNow).slice().sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+          const lim = scanSettings.recentLimit;
+          const view = (lim === 0 || lim === "0" || lim === "full") ? all : all.slice(0, Number(lim || 10));
+          return (
+            <div style={{ maxHeight: 260, overflow: 'auto', border: '1.5px solid var(--brd)', borderRadius: 'var(--r)', padding: 8, background: 'var(--card)' }}>
+              {view.length === 0 ? (
+                <div style={{ color: 'var(--tx3)', fontSize: 12 }}>Henüz kayıt yok</div>
+              ) : (
+                view.map((r, i) => (
+                  <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 4px', borderBottom: i === view.length - 1 ? 'none' : '1px solid var(--brd)' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div className="bc" style={{ fontWeight: 900 }}>{r.barcode}</div>
+                        {r.inheritedFromShift && (
+                          <span style={{ fontSize: 9, color: 'var(--tx3)', background: 'var(--s2)', border: '1px solid var(--brd)', borderRadius: 4, padding: '1px 5px', whiteSpace: 'nowrap' }}>
+                            devralındı
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 2 }}>
+                        {(r.scanned_by || '—')} · {(r.customer || '—')} &nbsp; {r.time || ''}
+                      </div>
+                    </div>
+                    <button className="btn btn-info btn-sm" style={{ height: 32, padding: "0 8px" }} onClick={() => setEditDupRec(r)}><Ic d={I.edit} s={12} /></button>
+                  </div>
+                ))
+              )}
+            </div>
+          );
+        })()}
+      </div>
+
       {editDupRec && <EditRecordModal record={editDupRec} fields={fields} customers={customerList} onSave={(r)=>{ onEdit(r); setEditDupRec(null); }} onClose={()=>setEditDupRec(null)} />}
+
+      {inheritModal && <ShiftInheritModal currentShift={currentShift} records={records} onCopy={copyFromShift} onClose={() => setInheritModal(false)} />}
 
       {custModal && <CustomerModal customers={customerList} selected={customer}
         onSelect={v => { setCustomer(v); scheduleFocus(); }} onClose={() => { setCustModal(false); scheduleFocus(); }}
