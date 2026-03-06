@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import * as XLSX from "xlsx";
@@ -35,6 +35,7 @@ export default function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem("scandesk_theme") || "dark");
   const [userLoginShift, setUserLoginShift] = useState(null);
   const [graceSecsLeft, setGraceSecsLeft] = useState(null);
+  const inGraceRef = useRef(false);
 
   // Apply theme to document
   useEffect(() => {
@@ -79,6 +80,7 @@ export default function App() {
   const isAdmin = user?.role === "admin";
 
   const handleLogout = useCallback(() => {
+    inGraceRef.current = false;
     setUser(null);
     setPage("scan");
     setUserLoginShift(null);
@@ -86,6 +88,7 @@ export default function App() {
   }, []);
 
   const handleLogin = useCallback((u) => {
+    inGraceRef.current = false;
     setUser(u);
     setPage("scan");
     setGraceSecsLeft(null);
@@ -96,13 +99,17 @@ export default function App() {
     }
   }, []);
 
+  const GRACE_PERIOD_SECS = 300; // 5 dakika
+
   // Vardiya bitimi algılama — sadece normal kullanıcılar için
   useEffect(() => {
     if (!user || isAdmin || !userLoginShift) return;
     const id = setInterval(() => {
+      if (inGraceRef.current) return; // grace zaten başladı, gereksiz kontrol yapma
       const current = getCurrentShift();
       if (current !== userLoginShift) {
-        setGraceSecsLeft(prev => prev === null ? 300 : prev);
+        inGraceRef.current = true;
+        setGraceSecsLeft(GRACE_PERIOD_SECS);
         setPage(prev => prev === "scan" ? "data" : prev);
       }
     }, 15_000);
