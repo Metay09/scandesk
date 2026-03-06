@@ -8,7 +8,7 @@ import EditRecordModal from "./EditRecordModal";
 import CustomerModal from "./CustomerModal";
 import ShiftInheritModal from "./ShiftInheritModal";
 
-export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdmin, user, integration, scanSettings, toast, currentShift, setCurrentShift, shiftList }) {
+export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdmin, user, integration, scanSettings, toast, currentShift, setCurrentShift, shiftList, shiftConfirmed, onShiftConfirm }) {
   const customerList = Array.isArray(customers) ? customers : (customers?.list || []);
   const today = fmtDate();
   const inputRef  = useRef(null);
@@ -28,6 +28,8 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const [scanPulse, setScanPulse] = useState(false);
   const trackRef = useRef(null);
   const [pendingBc, setPendingBc] = useState(null);
+  // Geçici vardiya seçimi — admin tarama ekranına ilk girdiğinde kullanılır
+  const [tempShift, setTempShift] = useState(() => currentShift || (shiftList && shiftList[0]) || "");
 
   const [bulkMode, setBulkMode]   = useState(false);
   const [bulkList, setBulkList]   = useState([]);
@@ -235,7 +237,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
       if (integration.type === "supabase") supabaseInsert(integration.supabase, { ...row, id: undefined }).catch(e => toast("Supabase hatası: " + e.message, "var(--err)"));
       else sheetsInsert(integration.gsheets, headers, rowArr).catch(e => toast("Sheets hatası: " + e.message, "var(--err)"));
     }
-  }, [customer, extras, fields, user, onSave, scheduleFocus, vibration, beep, integration, toast, currentShift, records]);
+  }, [customer, extras, fields, user, onSave, scheduleFocus, vibration, beep, integration, toast, currentShift, records, shiftList]);
 
   const doSave = useCallback(() => {
     if (pendingBc) doSaveCode(pendingBc, extras);
@@ -275,7 +277,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     } else {
       toast("Kopyalanacak kayıt bulunamadı", "var(--acc)");
     }
-  }, [records, currentShift, onSave, toast]);
+  }, [records, currentShift, onSave, toast, shiftList]);
 
   const handleKey = e => {
     if (e.key !== "Enter") return;
@@ -290,6 +292,43 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
   // BUG FIX: derive torchSupported from track capabilities
   const torchSupported = !!trackRef.current?.getCapabilities?.()?.torch;
+
+  /* ── Admin: zorunlu vardiya seçim ekranı ── */
+  if (isAdmin && !shiftConfirmed) {
+    const sl = Array.isArray(shiftList) && shiftList.length ? shiftList : ["00:00/08:00", "08:00/16:00", "16:00/24:00"];
+    return (
+      <div className="page" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+        <div style={{ background: "var(--card)", border: "1.5px solid var(--brd)", borderRadius: "var(--r2)", padding: "28px 24px", width: "100%", maxWidth: 360 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <Ic d={I.fields} s={20} />
+            <span style={{ fontSize: 17, fontWeight: 800 }}>Vardiya Seç</span>
+          </div>
+          <p style={{ fontSize: 13, color: "var(--tx2)", marginBottom: 20 }}>
+            Taramaya başlamadan önce aktif vardiyayı seçin.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
+            {sl.map(s => (
+              <button
+                key={s}
+                className={`btn btn-full ${tempShift === s ? "btn-primary" : "btn-ghost"}`}
+                style={{ justifyContent: "center", fontWeight: 700, fontSize: 15 }}
+                onClick={() => setTempShift(s)}
+              >
+                {tempShift === s && <Ic d={I.check} s={14} />} {s}
+              </button>
+            ))}
+          </div>
+          <button
+            className="btn btn-ok btn-full btn-lg"
+            disabled={!tempShift}
+            onClick={() => onShiftConfirm(tempShift)}
+          >
+            <Ic d={I.scan} s={18} /> Vardiyayı Başlat
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="page">

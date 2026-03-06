@@ -27,6 +27,7 @@ export default function App() {
   const [custList, setCustList]   = useState(DEFAULT_CUSTS);
   const [settings, setSettings]   = useState(INITIAL_SETTINGS);
   const [currentShift, setCurrentShift] = useState(() => getDefaultShift(INITIAL_SETTINGS.shiftList));
+  const [shiftConfirmed, setShiftConfirmed] = useState(false);
   const [integration, setIntegration] = useState({
     active: false, type: "supabase",
     supabase: { url: "", key: "", table: "taramalar" },
@@ -161,7 +162,12 @@ export default function App() {
     setUsers(p => p.map(u => u.id === userId ? { ...u, password: hashed } : u));
   };
 
-  if (!user) return <Login users={users} onLogin={u => { setUser(u); setPage("scan"); }} onMigratePassword={handleMigratePassword} />;
+  if (!user) return <Login users={users} shiftList={settings.shiftList || INITIAL_SETTINGS.shiftList} onLogin={(u, shift) => {
+    setUser(u);
+    if (shift) { setCurrentShift(shift); setShiftConfirmed(true); }
+    else { setShiftConfirmed(false); } // admin seçimini tarama ekranında yapar
+    setPage("scan");
+  }} onMigratePassword={handleMigratePassword} />;
 
   return (
     <div className="shell">
@@ -213,12 +219,12 @@ export default function App() {
 
       {/* CONTENT */}
       <div className="scroll-area">
-        {page === "scan"     && <ScanPage fields={fields} onSave={handleSave} onEdit={handleEdit} records={records} lastSaved={lastSaved} customers={customers} isAdmin={isAdmin} user={user} integration={integration} scanSettings={settings} toast={toast} currentShift={currentShift} setCurrentShift={setCurrentShift} shiftList={settings.shiftList || INITIAL_SETTINGS.shiftList} />}
-        {page === "data"     && <DataPage     fields={fields} records={records} onDelete={handleDelete} onEdit={handleEdit} onExport={handleExport} onImport={handleImport} customers={customers} settings={settings} toast={toast} />}
+        {page === "scan"     && <ScanPage fields={fields} onSave={handleSave} onEdit={handleEdit} records={records} lastSaved={lastSaved} customers={customers} isAdmin={isAdmin} user={user} integration={integration} scanSettings={settings} toast={toast} currentShift={currentShift} setCurrentShift={setCurrentShift} shiftList={settings.shiftList || INITIAL_SETTINGS.shiftList} shiftConfirmed={shiftConfirmed} onShiftConfirm={s => { setCurrentShift(s); setShiftConfirmed(true); }} />}
+        {page === "data"     && <DataPage     fields={fields} records={records} onDelete={handleDelete} onEdit={handleEdit} onExport={handleExport} onImport={handleImport} customers={customers} settings={settings} toast={toast} isAdmin={isAdmin} />}
         {page === "report"   && <ReportPage   records={records} fields={fields} />}
         {page === "fields"   && <FieldsPage   fields={fields} setFields={setFields} isAdmin={isAdmin} settings={settings} />}
         {page === "users"    && isAdmin && <UsersPage users={users} setUsers={setUsers} currentUser={user} toast={toast} />}
-        {page === "settings" && <SettingsPage settings={settings} setSettings={setSettings} integration={integration} setIntegration={setIntegration} isAdmin={isAdmin} onClearData={handleClear} onDeleteRange={handleDeleteRange} records={records} toast={toast} user={user} onLogout={() => { setUser(null); setPage("scan"); }} theme={theme} onToggleTheme={toggleTheme} />}
+        {page === "settings" && <SettingsPage settings={settings} setSettings={setSettings} integration={integration} setIntegration={setIntegration} isAdmin={isAdmin} onClearData={handleClear} onDeleteRange={handleDeleteRange} records={records} toast={toast} user={user} onLogout={() => { setUser(null); setShiftConfirmed(false); setPage("scan"); }} theme={theme} onToggleTheme={toggleTheme} />}
       </div>
 
       {/* BOTTOM NAV (mobile) */}

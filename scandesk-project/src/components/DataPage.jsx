@@ -4,12 +4,14 @@ import { Ic, I } from "./Icon";
 import EditRecordModal from "./EditRecordModal";
 import { genId } from "../constants";
 
-export default function DataPage({ fields, records, onDelete, onEdit, onExport, onImport, customers, settings, toast }) {
+export default function DataPage({ fields, records, onDelete, onEdit, onExport, onImport, customers, settings, toast, isAdmin }) {
   const [q, setQ]           = useState("");
   const [grouped, setGrouped] = useState(true);
   const [editRec, setEditRec] = useState(null);
   const [sel, setSel] = useState(() => new Set());
   const [shiftFilter, setShiftFilter] = useState("all");
+  const [dateFilter, setDateFilter]   = useState("");   // "YYYY-MM-DD" ya da ""
+  const [userFilter, setUserFilter]   = useState("all");
   const importRef = useRef(null);
   const toggleSel = (id) => setSel(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const clearSel = () => setSel(new Set());
@@ -74,8 +76,11 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
 
   const allF = [{ id: "barcode", label: "Barkod", type: "Metin" }, ...fields.filter(f => f.id !== "barcode")];
   const allShifts = [...new Set(records.map(r => r.shift).filter(Boolean))].sort();
+  const allUsers  = [...new Set(records.map(r => r.scanned_by_username).filter(Boolean))].sort();
   const filtered = records.filter(r => {
     if (shiftFilter !== "all" && r.shift !== shiftFilter) return false;
+    if (dateFilter && r.date !== dateFilter) return false;
+    if (userFilter !== "all" && r.scanned_by_username !== userFilter) return false;
     if (!q) return true;
     return [...allF, { id: "customer" }, { id: "scanned_by" }, { id: "shift" }].some(f =>
       String(r[f.id] ?? "").toLowerCase().includes(q.toLowerCase())
@@ -153,8 +158,8 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
       )}
 
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-        <div className="srch">
+      <div style={{ display: "flex", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+        <div className="srch" style={{ flex: "1 1 140px", minWidth: 120 }}>
           <span className="srch-ico"><Ic d={I.search} s={16} /></span>
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="Ara..." />
         </div>
@@ -166,7 +171,34 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
           <option value="all">Tüm Vardiyalar</option>
           {allShifts.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        <button className={`btn btn-sm ${grouped ? "btn-info" : "btn-ghost"}`} onClick={() => setGrouped(p => !p)}>
+        <input
+          type="date"
+          value={dateFilter}
+          onChange={e => setDateFilter(e.target.value)}
+          title="Tarih filtresi"
+          style={{ height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, flexShrink: 0 }}
+        />
+        {allUsers.length > 0 && (
+          <select
+            value={userFilter}
+            onChange={e => setUserFilter(e.target.value)}
+            style={{ height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: 600, flexShrink: 0 }}
+          >
+            <option value="all">Tüm Kullanıcılar</option>
+            {allUsers.map(u => <option key={u} value={u}>{u}</option>)}
+          </select>
+        )}
+        {(shiftFilter !== "all" || dateFilter || userFilter !== "all") && (
+          <button
+            className="btn btn-ghost btn-sm"
+            style={{ height: 40, flexShrink: 0 }}
+            title="Filtreleri temizle"
+            onClick={() => { setShiftFilter("all"); setDateFilter(""); setUserFilter("all"); }}
+          >
+            ✕
+          </button>
+        )}
+        <button className={`btn btn-sm ${grouped ? "btn-info" : "btn-ghost"}`} onClick={() => setGrouped(p => !p)} style={{ height: 40 }}>
           <Ic d={I.group} s={15} />
         </button>
       </div>
