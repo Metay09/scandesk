@@ -230,7 +230,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
       if (integration.type === "supabase") supabaseInsert(integration.supabase, { ...row, id: undefined }).catch(e => toast("Supabase hatası: " + e.message, "var(--err)"));
       else sheetsInsert(integration.gsheets, headers, rowArr).catch(e => toast("Sheets hatası: " + e.message, "var(--err)"));
     }
-  }, [customer, extras, fields, user, onSave, scheduleFocus, vibration, beep, integration, toast]);
+  }, [customer, extras, fields, user, onSave, scheduleFocus, vibration, beep, integration, toast, currentShift, records]);
 
   const doSave = useCallback(() => {
     if (pendingBc) doSaveCode(pendingBc, extras);
@@ -285,16 +285,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
               <button
                 type="button"
                 className="cam-ic"
-                onClick={async () => {
-                  try {
-                    if (!torchSupported) { toast("Bu cihazda flaş desteklenmiyor", "var(--acc)"); return; }
-                    const next = !torchOn;
-                    setTorchOn(next);
-                    await toggleTorch(next);
-                  } catch (e) {
-                    toast("Flaş açılamadı", "var(--acc)");
-                  }
-                }}
+                onClick={() => toggleTorch()}
                 title="Flaş"
               >⚡</button>
               <button type="button" className="cam-ic" onClick={stopCamera} title="Kapat">✕</button>
@@ -426,10 +417,10 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div className="bc" style={{ fontWeight: 900 }}>{r.barcode}</div>
                           <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 2 }}>
-                            {(r.user || '—')} · {(r.customer || '—')} &nbsp; {r.time || ''}
+                            {(r.scanned_by || '—')} · {(r.customer || '—')} &nbsp; {r.time || ''}
                           </div>
                         </div>
-                        <button className="btn btn-sm" style={{ height: 28 }} onClick={() => onEdit(r)}><Ic d={I.edit} s={14} /> Düzenle</button>
+                        <button className="btn btn-sm" style={{ height: 28 }} onClick={() => setEditDupRec(r)}><Ic d={I.edit} s={14} /> Düzenle</button>
                       </div>
                     ))
                   )}
