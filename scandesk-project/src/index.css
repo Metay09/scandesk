@@ -10,7 +10,7 @@ html,body,#root{height:100%;width:100%;}
   --inf:#3b82f6;--inf2:rgba(59,130,246,.14);--inf3:rgba(59,130,246,.35);
   --pur:#a855f7;--pur2:rgba(168,85,247,.14);--pur3:rgba(168,85,247,.35);
   --tx:#f1f3f7;--tx2:#8a93a8;--tx3:#3f4a5e;
-  --r:10px;--r2:14px;
+  --r:14px;--r2:20px;
   --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
 }
 [data-theme="light"]{
@@ -86,7 +86,7 @@ label.lbl{display:block;font-size:11px;font-weight:700;color:var(--tx2);
 .nav-btn.active{color:var(--acc);}
 .nav-btn:active{background:var(--s2);}
 .nav-badge{background:var(--acc);color:#000;font-size:9px;font-weight:800;
-  border-radius:6px;padding:1px 5px;line-height:13px;}
+  border-radius:8px;padding:1px 5px;line-height:13px;}
 
 /* ── IDENTITY ── */
 .logo-icon{display:flex;align-items:center;justify-content:center;
@@ -95,19 +95,19 @@ label.lbl{display:block;font-size:11px;font-weight:700;color:var(--tx2);
   font-weight:800;flex-shrink:0;background:var(--acc2);border:1.5px solid var(--acc3);color:var(--acc);}
 .user-pill{display:flex;align-items:center;gap:6px;background:var(--s2);
   border:1.5px solid var(--brd);border-radius:20px;padding:4px 10px 4px 5px;}
-.badge{display:inline-flex;align-items:center;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:800;letter-spacing:.04em;}
+.badge{display:inline-flex;align-items:center;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:800;letter-spacing:.04em;}
 .badge-acc{background:var(--acc2);color:var(--acc);}
 .badge-ok{background:var(--ok2);color:var(--ok);}
 .badge-err{background:var(--err2);color:var(--err);}
 .badge-inf{background:var(--inf2);color:var(--inf);}
 .tag{background:var(--s3);border:1px solid var(--brd);color:var(--tx2);
-  font-size:10px;padding:2px 7px;border-radius:4px;font-family:var(--mono);}
+  font-size:10px;padding:2px 7px;border-radius:6px;font-family:var(--mono);}
 
 /* ── SCAN ── */
 .cust-bar{display:flex;align-items:center;gap:8px;padding:10px 12px;
   background:var(--s1);border:1.5px solid var(--brd);border-radius:var(--r);margin-bottom:10px;}
 .cust-btn{display:flex;align-items:center;gap:7px;background:var(--inf2);
-  border:1.5px solid var(--inf3);border-radius:8px;padding:8px 13px;
+  border:1.5px solid var(--inf3);border-radius:12px;padding:8px 13px;
   font-size:14px;font-weight:700;color:var(--inf);cursor:pointer;flex:1;min-width:0;
   -webkit-tap-highlight-color:transparent;}
 .cust-btn:active{filter:brightness(1.12);}
@@ -130,11 +130,11 @@ label.lbl{display:block;font-size:11px;font-weight:700;color:var(--tx2);
 .cam-video{width:100%;display:block;max-height:220px;object-fit:cover;}
 .cam-full .cam-video{height:62vh;max-height:62vh;}
 .cam-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;}
-.cam-frame{border:2.5px solid var(--acc);border-radius:10px;
+.cam-frame{border:2.5px solid var(--acc);border-radius:14px;
   box-shadow:0 0 0 2000px rgba(0,0,0,.44);position:relative;overflow:hidden;
   max-width:520px;}
-.cam-frame.square{border-radius:14px;}
-.cam-frame.rect{border-radius:12px;}
+.cam-frame.square{border-radius:18px;}
+.cam-frame.rect{border-radius:16px;}
 .cam-line{position:absolute;left:0;right:0;height:2px;
   background:linear-gradient(90deg,transparent,var(--acc),transparent);
   animation:scan 2s ease-in-out infinite;}
@@ -145,7 +145,7 @@ label.lbl{display:block;font-size:11px;font-weight:700;color:var(--tx2);
 .cam-pill{background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.18);color:#fff;font-size:12px;padding:6px 10px;border-radius:999px;max-width:70vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .cam-pill-info{border-color:rgba(110,231,183,.35);}
 .cam-top-right{display:flex;gap:8px;align-items:center;}
-.cam-ic{pointer-events:auto;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.18);color:#fff;border-radius:12px;padding:6px 10px;font-size:14px;font-weight:800;}
+.cam-ic{pointer-events:auto;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.18);color:#fff;border-radius:16px;padding:6px 10px;font-size:14px;font-weight:800;}
 
 .last-scan{padding:11px 14px;border-radius:var(--r);margin-bottom:10px;
   background:var(--ok2);border:1.5px solid var(--ok3);
@@ -184,7 +184,7 @@ label.lbl{display:block;font-size:11px;font-weight:700;color:var(--tx2);
   background:var(--inf2);border:1.5px solid var(--inf3);border-radius:var(--r);
   margin:10px 0 4px;font-size:12px;font-weight:700;color:var(--inf);}
 .group-count{background:var(--inf);color:#000;font-size:9px;font-weight:800;
-  border-radius:5px;padding:2px 6px;margin-left:auto;}
+  border-radius:8px;padding:2px 6px;margin-left:auto;}
 .srch{position:relative;flex:1;}
 .srch input{padding-left:42px;}
 .srch-ico{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--tx3);pointer-events:none;}
@@ -206,7 +206,7 @@ label.lbl{display:block;font-size:11px;font-weight:700;color:var(--tx2);
 .modal-bd{padding:16px;display:flex;flex-direction:column;gap:12px;}
 .modal-ft{padding:12px 16px;border-top:1.5px solid var(--brd);display:flex;gap:8px;
   position:sticky;bottom:0;background:var(--s1);}
-.x-btn{width:34px;height:34px;border-radius:8px;background:var(--s2);border:1.5px solid var(--brd);
+.x-btn{width:34px;height:34px;border-radius:12px;background:var(--s2);border:1.5px solid var(--brd);
   color:var(--tx2);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .x-btn:active{background:var(--s3);}
 
@@ -250,7 +250,7 @@ label.lbl{display:block;font-size:11px;font-weight:700;color:var(--tx2);
 .info-box.inf{background:var(--inf2);border:1.5px solid var(--inf3);color:var(--inf);}
 .info-box.ok{background:var(--ok2);border:1.5px solid var(--ok3);color:var(--ok);}
 .info-box.warn{background:var(--acc2);border:1.5px solid var(--acc3);color:var(--acc);}
-.info-box code{font-family:var(--mono);font-size:11px;background:rgba(0,0,0,.3);padding:1px 5px;border-radius:3px;}
+.info-box code{font-family:var(--mono);font-size:11px;background:rgba(0,0,0,.3);padding:1px 5px;border-radius:5px;}
 
 /* ── FIELDS ── */
 .field-card{background:var(--s1);border:1.5px solid var(--brd);border-radius:var(--r);padding:14px;margin-bottom:10px;}
