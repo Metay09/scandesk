@@ -158,9 +158,13 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
         setScanPulse(true);
         setTimeout(() => setScanPulse(false), 220);
         if (!bulkMode) stopCamera();
-        // Always show detail form after scan
-        setPendingBc(code);
-        setBarcode(code);
+        // Show detail form if setting is enabled, otherwise process barcode directly
+        if (addDetailAfterScan) {
+          setPendingBc(code);
+          setBarcode(code);
+        } else {
+          onBarcode(code);
+        }
         return;
       }
     } catch {}
@@ -340,9 +344,16 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     if (e.key !== "Enter") return;
     e.preventDefault();
     const bc = barcode.trim();
-    // Always show detail form when barcode is entered
-    if (bc && !pendingBc) { setPendingBc(bc); return; }
-    if (pendingBc) { doSave(); return; }
+    // Show detail form if setting is enabled, otherwise use autoSave behavior
+    if (addDetailAfterScan && bc && !pendingBc) {
+      setPendingBc(bc);
+      return;
+    }
+    if (pendingBc) {
+      doSave();
+      return;
+    }
+    if (autoSave) onBarcode(bc);
   };
 
   const extraFields = fields.filter(f => f.id !== "barcode");
@@ -514,7 +525,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
       </div>
 
       {/* Detail form */}
-      {pendingBc ? (
+      {pendingBc && addDetailAfterScan ? (
         <div className="detail-form">
           <div><label className="lbl">Taranan Barkod</label><div className="detail-bc">{pendingBc}</div></div>
           {extraFields.map((f, i) => (
@@ -590,6 +601,24 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
                 <div key={x.code} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 4px", borderBottom: i === bulkList.length - 1 ? "none" : "1px solid var(--brd)" }}>
                   <span className="bc" style={{ flex: 1 }}>{x.code}</span>
                   <button className="btn btn-danger btn-sm" style={{ height: 28 }} onClick={() => setBulkList(p => p.filter(y => y.code !== x.code))}><Ic d={I.del} s={12} /></button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Extra fields (visible only if addDetailAfterScan is OFF) */}
+          {!addDetailAfterScan && extraFields.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 10 }}>
+              {extraFields.map((f, i) => (
+                <div key={f.id}>
+                  <label className="lbl">{f.label}{f.required ? " *" : ""}</label>
+                  <FieldInput
+                    ref={i === 0 ? firstFieldRef : null}
+                    field={f}
+                    value={extras[f.id]}
+                    onChange={(v) => setExtras(p => ({ ...p, [f.id]: v }))}
+                    onKeyDown={(e) => handleFieldKeyDown(e, i)}
+                  />
                 </div>
               ))}
             </div>
