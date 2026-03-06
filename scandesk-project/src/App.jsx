@@ -36,7 +36,6 @@ export default function App() {
   const [userLoginShift, setUserLoginShift] = useState(null);
   const [graceSecsLeft, setGraceSecsLeft] = useState(null);
   const inGraceRef = useRef(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Apply theme to document
   useEffect(() => {
@@ -213,9 +212,6 @@ export default function App() {
     <div className="shell">
       {/* TOPBAR (mobile) */}
       <div className="topbar">
-        <button className="ham-btn" onClick={() => setDrawerOpen(true)} aria-label="Menü">
-          <Ic d="M3 12h18M3 6h18M3 18h18" s={18} />
-        </button>
         <div className="logo-icon" style={{ width: 28, height: 28, borderRadius: 7 }}><Ic d={I.barcode} s={14} /></div>
         <span style={{ fontSize: 15, fontWeight: 800 }}>ScanDesk</span>
         <span style={{ flex: 1, textAlign: "center", fontSize: 12, fontWeight: 700, color: "var(--tx2)" }}>
@@ -235,38 +231,6 @@ export default function App() {
           {isAdmin && <span className="badge badge-acc">ADM</span>}
         </div>
       </div>
-
-      {/* DRAWER (mobile) */}
-      {drawerOpen && (
-        <>
-          <div className="drawer-overlay" onClick={() => setDrawerOpen(false)} />
-          <div className="drawer">
-            <div className="drawer-logo">
-              <div className="logo-icon" style={{ width: 30, height: 30, borderRadius: 8 }}><Ic d={I.barcode} s={14} /></div>
-              ScanDesk
-            </div>
-            {NAV.map(n => (
-              <button key={n.id} className={`drawer-item ${page === n.id ? "active" : ""}`} onClick={() => { setPage(n.id); setDrawerOpen(false); }}>
-                <Ic d={n.icon} s={16} />{n.label}
-                {n.id === "data" && records.length > 0 && <span className="nav-badge" style={{ marginLeft: "auto" }}>{records.length}</span>}
-                {n.id === "settings" && integration.active && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--ok)", marginLeft: "auto" }} />}
-              </button>
-            ))}
-            <div className="drawer-footer">
-              <div className="user-pill" style={{ borderRadius: "var(--r)", gap: 8, marginBottom: 10 }}>
-                <div className="avatar" style={{ width: 30, height: 30 }}>{user.name[0]}</div>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 700 }}>{user.name}</div>
-                  <div style={{ fontSize: 10, color: "var(--tx2)" }}>@{user.username} · {isAdmin ? "Admin" : "Kullanıcı"}</div>
-                </div>
-              </div>
-              <button className="drawer-item" style={{ color: "var(--err)" }} onClick={() => { setDrawerOpen(false); handleLogout(); }}>
-                <Ic d={I.logout} s={16} /> Çıkış Yap
-              </button>
-            </div>
-          </div>
-        </>
-      )}
 
       {/* SIDEBAR (desktop) */}
       <div className="side-nav">
