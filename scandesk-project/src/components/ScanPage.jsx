@@ -394,10 +394,13 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
             </div>
           )}
 
-          {/* Bu vardiya okutulanlar */}
+          {/* Son Okutmalar */}
           <div style={{ marginBottom: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 6 }}>
-              <div style={{ fontSize: 12, color: 'var(--tx2)', fontWeight: 800 }}>Bu Vardiya Okutulanlar</div>
+              <div>
+                <div style={{ fontSize: 12, color: 'var(--tx2)', fontWeight: 800 }}>Son Okutmalar</div>
+                {currentShift && <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: 2 }}>{currentShift}</div>}
+              </div>
               <div className="row" style={{ gap: 8 }}>
                 <select
                   value={currentShift}
@@ -412,7 +415,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
             {(() => {
               const todayNow = fmtDate(nowTs());
-              const all = (records || []).filter(r => r.shift === currentShift && r.date === todayNow).slice().reverse();
+              const all = (records || []).filter(r => r.shift === currentShift && r.date === todayNow).slice().sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
               const lim = scanSettings.recentLimit;
               const view = (lim === 0 || lim === "0" || lim === "full") ? all : all.slice(0, Number(lim || 10));
               return (
