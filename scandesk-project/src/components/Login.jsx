@@ -25,7 +25,7 @@ export default function Login({ users, onLogin }) {
         </div>
         <div className="fg">
           <label className="lbl">Şifre</label>
-          <PasswordInput value={p} onChange={e => setP(e.target.value)} />
+          <PasswordInput value={p} onChange={e => setP(e.target.value)} onKeyDown={e => e.key === "Enter" && go()} />
         </div>
         <button className="btn btn-primary btn-full btn-lg" onClick={go}>Giriş Yap</button>
       </div>

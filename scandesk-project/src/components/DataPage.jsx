@@ -34,6 +34,7 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
         </td>
       ))}
       {showCust && <td style={{ color: "var(--inf)", fontWeight: 600, fontSize: 12 }}>{r.customer || "—"}</td>}
+      <td style={{ fontSize: 11, color: "var(--tx2)", whiteSpace: "nowrap" }}>{r.shift || "—"}</td>
       <td><span className="sig-cell">{r.scanned_by}</span></td>
       <td style={{ fontSize: 10, color: "var(--tx2)", fontFamily: "var(--mono)", whiteSpace: "nowrap" }}>
         {new Date(r.timestamp).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}
@@ -51,7 +52,7 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
     <thead><tr>
       <th>#</th>
       <th style={{ width: 34 }}><input type="checkbox" checked={sel.size>0 && filtered.length>0 && filtered.every(r=>sel.has(r.id))} onChange={e => { if (e.target.checked) setSel(new Set(filtered.map(r=>r.id))); else clearSel(); }} /></th>{allF.map(f => <th key={f.id}>{f.label}</th>)}
-      {showCust && <th>Müşteri</th>}<th>Kaydeden</th><th>Saat</th><th></th>
+      {showCust && <th>Müşteri</th>}<th>Vardiya</th><th>Kaydeden</th><th>Saat</th><th></th>
     </tr></thead>
   );
 

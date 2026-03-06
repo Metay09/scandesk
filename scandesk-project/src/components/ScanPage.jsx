@@ -282,12 +282,14 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
               {bulkMode ? <div className="cam-pill cam-pill-info">Toplu Mod</div> : <div className="cam-pill">Tekli</div>}
             </div>
             <div className="cam-top-right">
-              <button
-                type="button"
-                className="cam-ic"
-                onClick={() => toggleTorch()}
-                title="Flaş"
-              >⚡</button>
+              {torchSupported && (
+                <button
+                  type="button"
+                  className="cam-ic"
+                  onClick={() => toggleTorch()}
+                  title="Flaş"
+                >⚡</button>
+              )}
               <button type="button" className="cam-ic" onClick={stopCamera} title="Kapat">✕</button>
             </div>
           </div>
@@ -397,7 +399,13 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 6 }}>
               <div style={{ fontSize: 12, color: 'var(--tx2)', fontWeight: 800 }}>Bu Vardiya Okutulanlar</div>
               <div className="row" style={{ gap: 8 }}>
-                <span className="chip">{currentShift}</span>
+                <select
+                  value={currentShift}
+                  onChange={e => setCurrentShift(e.target.value)}
+                  style={{ height: 26, borderRadius: 10, padding: '0 8px', background: 'var(--s2)', color: 'var(--tx)', border: '1.5px solid var(--brd)', fontSize: 11, fontWeight: 700 }}
+                >
+                  {shiftList.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
                 <span className="chip">{fmtDate(nowTs())}</span>
               </div>
             </div>
