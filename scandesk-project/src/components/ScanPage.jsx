@@ -518,11 +518,6 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
           </div>
         </div>
       )}
-      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-        {!camActive
-          ? <button type="button" className="btn btn-ghost btn-full btn-sm" onClick={startCamera} disabled={shiftExpired && !isAdmin}><Ic d={I.camera} s={16} /> Kamerayı Aç</button>
-          : <button type="button" className="btn btn-danger btn-full btn-sm" onClick={stopCamera}><Ic d={I.camOff} s={16} /> Kapat</button>}
-      </div>
 
       {/* Detail form */}
       {pendingBc && addDetailAfterScan ? (
@@ -561,6 +556,32 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
               autoComplete="off" autoCorrect="off"
               autoCapitalize="none" spellCheck={false} inputMode="text"
             />
+            <button
+              type="button"
+              onClick={camActive ? stopCamera : startCamera}
+              disabled={shiftExpired && !isAdmin}
+              style={{
+                position: "absolute",
+                right: 8,
+                top: "50%",
+                transform: "translateY(-50%)",
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                border: "none",
+                background: camActive ? "var(--err)" : "var(--inf2)",
+                color: camActive ? "#fff" : "var(--inf)",
+                cursor: shiftExpired && !isAdmin ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 18,
+                opacity: shiftExpired && !isAdmin ? 0.5 : 1
+              }}
+              title={camActive ? "Kamerayı Kapat" : "Kamerayı Aç"}
+            >
+              {camActive ? "✕" : "📷"}
+            </button>
           </div>
 
           {/* Toplu Mod */}
