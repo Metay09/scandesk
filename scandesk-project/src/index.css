@@ -123,7 +123,7 @@ label.lbl{display:block;font-size:11px;font-weight:700;color:var(--tx2);
 
 .bc-wrap{position:relative;margin-bottom:10px;}
 .bc-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--tx3);pointer-events:none;}
-.bc-wrap .barcode-input{padding-left:50px;}
+.bc-wrap .barcode-input{padding-left:50px;padding-right:52px;}
 
 .cam-box{border-radius:var(--r);overflow:hidden;border:1.5px solid var(--brd);
   background:#000;position:relative;margin-bottom:10px;}

@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import * as XLSX from "xlsx";
 import { Ic, I } from "./Icon";
 import EditRecordModal from "./EditRecordModal";
+import Modal from "./Modal";
 import { genId } from "../constants";
 import { toggleSetMember, getCustomerList } from "../utils";
 
@@ -14,6 +15,7 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
   const [dateFilter, setDateFilter]   = useState("");   // "YYYY-MM-DD" ya da ""
   const [userFilter, setUserFilter]   = useState("all");
   const [showShiftCol, setShowShiftCol] = useState(false); // Vardiya kolonu varsayılan gizli
+  const [pendingImport, setPendingImport] = useState(null); // Admin approval için bekleyen import
   const importRef = useRef(null);
   const toggleSel = (id) => setSel(p => toggleSetMember(p, id));
   const clearSel = () => setSel(new Set());
@@ -67,7 +69,36 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
           return rec;
         }).filter(Boolean);
         if (!imported.length) { toast && toast("Barkod sütunu bulunamadı", "var(--err)"); return; }
+
+        // Check for duplicates (same barcode + shift + date)
+        const duplicates = [];
+        imported.forEach(rec => {
+          const existing = records.find(r =>
+            String(r.barcode ?? "").trim() === String(rec.barcode ?? "").trim() &&
+            String(r.shift ?? "") === String(rec.shift ?? "") &&
+            r.date === rec.date
+          );
+          if (existing) {
+            duplicates.push({ imported: rec, existing });
+          }
+        });
+
+        if (duplicates.length > 0) {
+          toast && toast(`${duplicates.length} adet tekrar eden kayıt bulundu - Admin onayı gerekli`, "var(--err)");
+
+          if (!isAdmin) {
+            toast && toast("İçe aktarma için admin yetkisi gerekiyor", "var(--err)");
+            return;
+          }
+
+          // Show confirmation dialog for admin
+          setPendingImport({ records: imported, duplicates });
+          return;
+        }
+
+        // No duplicates, proceed with import
         onImport(imported);
+        toast && toast(`${imported.length} kayıt içe aktarıldı`, "var(--ok)");
       } catch (err) {
         toast && toast("Dosya okunamadı: " + err.message, "var(--err)");
       }
@@ -75,13 +106,26 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
     reader.readAsArrayBuffer(file);
   };
 
+  const handleApproveImport = () => {
+    if (pendingImport) {
+      onImport(pendingImport.records);
+      toast && toast(`${pendingImport.records.length} kayıt içe aktarıldı (${pendingImport.duplicates.length} tekrar dahil)`, "var(--ok)");
+      setPendingImport(null);
+    }
+  };
+
+  const handleCancelImport = () => {
+    setPendingImport(null);
+    toast && toast("İçe aktarma iptal edildi", "var(--acc)");
+  };
+
   const allF = [{ id: "barcode", label: "Barkod", type: "Metin" }, ...fields.filter(f => f.id !== "barcode")];
   // Tüm kullanıcılar tüm kayıtları görebilir; admin vardiyaya göre filtreleyebilir
   const visibleRecords = records;
-  const allShifts = [...new Set(visibleRecords.map(r => r.shift).filter(Boolean))].sort();
+  const allShifts = isAdmin ? [...new Set(visibleRecords.map(r => r.shift).filter(Boolean))].sort() : [];
   const allUsers  = [...new Set(visibleRecords.map(r => r.scanned_by_username).filter(Boolean))].sort();
   const filtered = visibleRecords.filter(r => {
-    if (shiftFilter !== "all" && r.shift !== shiftFilter) return false;
+    if (isAdmin && shiftFilter !== "all" && r.shift !== shiftFilter) return false;
     if (dateFilter && r.date !== dateFilter) return false;
     if (userFilter !== "all" && r.scanned_by_username !== userFilter) return false;
     if (!q) return true;
@@ -128,12 +172,6 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
 
   return (
     <div className="page">
-      <div className="stats-row">
-        <div className="stat"><div className="stat-val" style={{ color: "var(--acc)" }}>{visibleRecords.length}</div><div className="stat-lbl">Kayıt</div></div>
-        <div className="stat"><div className="stat-val" style={{ color: "var(--ok)" }}>{new Set(visibleRecords.map(r => r.barcode)).size}</div><div className="stat-lbl">Benzersiz</div></div>
-        <div className="stat"><div className="stat-val" style={{ color: "var(--inf)" }}>{new Set(visibleRecords.map(r => r.customer).filter(Boolean)).size}</div><div className="stat-lbl">Müşteri</div></div>
-        <div className="stat"><div className="stat-val" style={{ color: "var(--pur)" }}>{new Set(visibleRecords.map(r => r.scanned_by).filter(Boolean)).size}</div><div className="stat-lbl">Personel</div></div>
-      </div>
 
       {settings.allowExport && (
         <div className="export-row">
@@ -161,61 +199,70 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
       )}
 
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
-        <div className="srch" style={{ flex: "1 1 140px", minWidth: 120 }}>
-          <span className="srch-ico"><Ic d={I.search} s={16} /></span>
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Ara..." />
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+          <div className="srch" style={{ flex: "1 1 140px", minWidth: 120 }}>
+            <span className="srch-ico"><Ic d={I.search} s={16} /></span>
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Ara..." />
+          </div>
+          <div style={{ flex: "1 1 140px", minWidth: 120 }}>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx2)", marginBottom: 4 }}>Tarih</label>
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={e => setDateFilter(e.target.value)}
+              style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12 }}
+            />
+          </div>
+          {isAdmin && allShifts.length > 0 && (
+            <div style={{ flex: "1 1 140px", minWidth: 120 }}>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx2)", marginBottom: 4 }}>Vardiya</label>
+              <select
+                value={shiftFilter}
+                onChange={e => setShiftFilter(e.target.value)}
+                style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: 600 }}
+              >
+                <option value="all">Tümü</option>
+                {allShifts.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          )}
+          {allUsers.length > 0 && (
+            <div style={{ flex: "1 1 140px", minWidth: 120 }}>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx2)", marginBottom: 4 }}>Kullanıcı</label>
+              <select
+                value={userFilter}
+                onChange={e => setUserFilter(e.target.value)}
+                style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: 600 }}
+              >
+                <option value="all">Tümü</option>
+                {allUsers.map(u => <option key={u} value={u}>{u}</option>)}
+              </select>
+            </div>
+          )}
         </div>
-        {isAdmin && (
-          <select
-            value={shiftFilter}
-            onChange={e => setShiftFilter(e.target.value)}
-            style={{ height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: 600, flexShrink: 0 }}
-          >
-            <option value="all">Tüm Vardiyalar</option>
-            {allShifts.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        )}
-        <input
-          type="date"
-          value={dateFilter}
-          onChange={e => setDateFilter(e.target.value)}
-          title="Tarih filtresi"
-          style={{ height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, flexShrink: 0 }}
-        />
-        {allUsers.length > 0 && (
-          <select
-            value={userFilter}
-            onChange={e => setUserFilter(e.target.value)}
-            style={{ height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: 600, flexShrink: 0 }}
-          >
-            <option value="all">Tüm Kullanıcılar</option>
-            {allUsers.map(u => <option key={u} value={u}>{u}</option>)}
-          </select>
-        )}
-        {(isAdmin && shiftFilter !== "all" || dateFilter || userFilter !== "all") && (
-          <button
-            className="btn btn-ghost btn-sm"
-            style={{ height: 40, flexShrink: 0 }}
-            title="Filtreleri temizle"
-            onClick={() => { if (isAdmin) setShiftFilter("all"); setDateFilter(""); setUserFilter("all"); }}
-          >
-            ✕
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {(dateFilter || (isAdmin && shiftFilter !== "all") || userFilter !== "all") && (
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => { setDateFilter(""); if (isAdmin) setShiftFilter("all"); setUserFilter("all"); }}
+            >
+              <Ic d={I.close} s={14} /> Filtreleri Temizle
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              className={`btn btn-sm ${showShiftCol ? "btn-info" : "btn-ghost"}`}
+              title={showShiftCol ? "Vardiya kolonunu gizle" : "Vardiya kolonunu göster"}
+              onClick={() => setShowShiftCol(p => !p)}
+            >
+              <Ic d={I.fields} s={14} /> Vardiya
+            </button>
+          )}
+          <button className={`btn btn-sm ${grouped ? "btn-info" : "btn-ghost"}`} onClick={() => setGrouped(p => !p)}>
+            <Ic d={I.group} s={15} /> {grouped ? "Gruplu" : "Liste"}
           </button>
-        )}
-        {isAdmin && (
-          <button
-            className={`btn btn-sm ${showShiftCol ? "btn-info" : "btn-ghost"}`}
-            style={{ height: 40, flexShrink: 0, fontSize: 11 }}
-            title={showShiftCol ? "Vardiya kolonunu gizle" : "Vardiya kolonunu göster"}
-            onClick={() => setShowShiftCol(p => !p)}
-          >
-            <Ic d={I.fields} s={14} /> Vardiya
-          </button>
-        )}
-        <button className={`btn btn-sm ${grouped ? "btn-info" : "btn-ghost"}`} onClick={() => setGrouped(p => !p)} style={{ height: 40 }}>
-          <Ic d={I.group} s={15} />
-        </button>
+        </div>
       </div>
 
       {filtered.length === 0
@@ -236,6 +283,65 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
 
       {editRec && <EditRecordModal record={editRec} fields={fields} customers={customerList}
         onSave={r => { onEdit(r); setEditRec(null); }} onClose={() => setEditRec(null)} />}
+
+      {pendingImport && (
+        <Modal
+          title="İçe Aktarma Onayı"
+          icon={I.upload}
+          onClose={handleCancelImport}
+          footer={
+            <>
+              <button className="btn btn-ok" style={{ flex: 1 }} onClick={handleApproveImport}>
+                <Ic d={I.check} s={16} /> Onayla ve İçe Aktar
+              </button>
+              <button className="btn btn-ghost" style={{ width: 88 }} onClick={handleCancelImport}>İptal</button>
+            </>
+          }
+        >
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ padding: "12px", background: "var(--err2)", border: "1.5px solid var(--err3)", borderRadius: "var(--r)", marginBottom: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <Ic d={I.warning} s={16} />
+                <span style={{ fontWeight: 700, fontSize: 14, color: "var(--err)" }}>Tekrar Eden Kayıtlar Bulundu</span>
+              </div>
+              <p style={{ fontSize: 12, color: "var(--tx2)", margin: 0 }}>
+                {pendingImport.duplicates.length} adet kayıt sistemde zaten mevcut (aynı barkod, vardiya ve tarih).
+                İçe aktarmaya devam ederseniz bu kayıtlar tekrar eklenir.
+              </p>
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--tx2)" }}>Toplam kayıt:</span>{" "}
+              <span style={{ fontSize: 13, fontWeight: 700 }}>{pendingImport.records.length}</span>
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--tx2)" }}>Tekrar eden:</span>{" "}
+              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--err)" }}>{pendingImport.duplicates.length}</span>
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--tx2)" }}>Yeni kayıt:</span>{" "}
+              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ok)" }}>{pendingImport.records.length - pendingImport.duplicates.length}</span>
+            </div>
+          </div>
+          {pendingImport.duplicates.length > 0 && (
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6, color: "var(--tx2)" }}>Tekrar Eden Kayıtlar:</div>
+              <div style={{ maxHeight: 200, overflowY: "auto", border: "1.5px solid var(--brd)", borderRadius: "var(--r)", padding: 8, background: "var(--s2)" }}>
+                {pendingImport.duplicates.slice(0, 10).map((dup, idx) => (
+                  <div key={idx} style={{ padding: "6px 8px", background: "var(--s1)", border: "1px solid var(--brd)", borderRadius: 6, marginBottom: 6, fontSize: 11 }}>
+                    <div><b>Barkod:</b> {dup.imported.barcode}</div>
+                    <div><b>Vardiya:</b> {dup.imported.shift} • <b>Tarih:</b> {dup.imported.date}</div>
+                  </div>
+                ))}
+                {pendingImport.duplicates.length > 10 && (
+                  <div style={{ fontSize: 11, color: "var(--tx3)", textAlign: "center", marginTop: 8 }}>
+                    ... ve {pendingImport.duplicates.length - 10} tane daha
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </Modal>
+      )}
     </div>
   );
 }

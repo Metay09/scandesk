@@ -39,22 +39,18 @@ function BarCard({ title, icon, color, entries }) {
   );
 }
 
-export default function ReportPage({ records, fields }) {
-  const [range, setRange] = useState("all");
+export default function ReportPage({ records, fields, isAdmin, currentShift }) {
+  const [dateFilter, setDateFilter] = useState("");
+  const [shiftFilter, setShiftFilter] = useState("all");
+  const [customerFilter, setCustomerFilter] = useState("all");
+  const [userFilter, setUserFilter] = useState("all");
 
-  const now = new Date();
+  // Filter records based on selected filters
   const filtered = records.filter(r => {
-    if (range === "all") return true;
-    const d = new Date(r.timestamp);
-    if (range === "today") return d.toDateString() === now.toDateString();
-    if (range === "week") {
-      // Monday of current week
-      const weekStart = new Date(now);
-      weekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-      weekStart.setHours(0, 0, 0, 0);
-      return d >= weekStart;
-    }
-    if (range === "month") return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    if (dateFilter && r.date !== dateFilter) return false;
+    if (isAdmin && shiftFilter !== "all" && r.shift !== shiftFilter) return false;
+    if (customerFilter !== "all" && r.customer !== customerFilter) return false;
+    if (userFilter !== "all" && r.scanned_by_username !== userFilter) return false;
     return true;
   });
 
@@ -62,27 +58,77 @@ export default function ReportPage({ records, fields }) {
   const byShift    = groupBy(filtered, "shift");
   const byCustomer = groupBy(filtered, "customer");
   const byUser     = groupBy(filtered, "scanned_by");
-  const uniqueBarcodes = new Set(filtered.map(r => r.barcode)).size;
+
+  const allShifts = [...new Set(records.map(r => r.shift).filter(Boolean))].sort();
+  const allCustomers = [...new Set(records.map(r => r.customer).filter(Boolean))].sort();
+  const allUsers = [...new Set(records.map(r => r.scanned_by_username).filter(Boolean))].sort();
 
   return (
     <div className="page">
-      {/* Summary stats */}
-      <div className="stats-row" style={{ gridTemplateColumns: "repeat(4,1fr)", marginBottom: 12 }}>
-        <div className="stat"><div className="stat-val" style={{ color: "var(--acc)" }}>{filtered.length}</div><div className="stat-lbl">Kayıt</div></div>
-        <div className="stat"><div className="stat-val" style={{ color: "var(--ok)" }}>{uniqueBarcodes}</div><div className="stat-lbl">Benzersiz</div></div>
-        <div className="stat"><div className="stat-val" style={{ color: "var(--inf)" }}>{byCustomer.length}</div><div className="stat-lbl">Müşteri</div></div>
-        <div className="stat"><div className="stat-val" style={{ color: "var(--pur)" }}>{byUser.length}</div><div className="stat-lbl">Personel</div></div>
-      </div>
-
-      {/* Date range filter */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
-        {[["all","Tümü"],["today","Bugün"],["week","Bu Hafta"],["month","Bu Ay"]].map(([v, label]) => (
-          <button key={v} className={`btn btn-sm ${range === v ? "btn-info" : "btn-ghost"}`} onClick={() => setRange(v)}>{label}</button>
-        ))}
+      {/* Advanced filtering */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 140px", minWidth: 120 }}>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx2)", marginBottom: 4 }}>Tarih</label>
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={e => setDateFilter(e.target.value)}
+              style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12 }}
+            />
+          </div>
+          {isAdmin && allShifts.length > 0 && (
+            <div style={{ flex: "1 1 140px", minWidth: 120 }}>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx2)", marginBottom: 4 }}>Vardiya</label>
+              <select
+                value={shiftFilter}
+                onChange={e => setShiftFilter(e.target.value)}
+                style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: 600 }}
+              >
+                <option value="all">Tümü</option>
+                {allShifts.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          )}
+          {allCustomers.length > 0 && (
+            <div style={{ flex: "1 1 140px", minWidth: 120 }}>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx2)", marginBottom: 4 }}>Müşteri</label>
+              <select
+                value={customerFilter}
+                onChange={e => setCustomerFilter(e.target.value)}
+                style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: 600 }}
+              >
+                <option value="all">Tümü</option>
+                {allCustomers.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          )}
+          {allUsers.length > 0 && (
+            <div style={{ flex: "1 1 140px", minWidth: 120 }}>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx2)", marginBottom: 4 }}>Kullanıcı</label>
+              <select
+                value={userFilter}
+                onChange={e => setUserFilter(e.target.value)}
+                style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: 600 }}
+              >
+                <option value="all">Tümü</option>
+                {allUsers.map(u => <option key={u} value={u}>{u}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+        {(dateFilter || (isAdmin && shiftFilter !== "all") || customerFilter !== "all" || userFilter !== "all") && (
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => { setDateFilter(""); if (isAdmin) setShiftFilter("all"); setCustomerFilter("all"); setUserFilter("all"); }}
+          >
+            <Ic d={I.close} s={14} /> Filtreleri Temizle
+          </button>
+        )}
       </div>
 
       {filtered.length === 0 ? (
-        <div className="empty-state"><Ic d={I.report} s={40} /><p style={{ marginTop: 10, fontSize: 14 }}>Bu aralıkta kayıt yok</p></div>
+        <div className="empty-state"><Ic d={I.report} s={40} /><p style={{ marginTop: 10, fontSize: 14 }}>Bu filtrelere uygun kayıt yok</p></div>
       ) : (
         <>
           <BarCard title="Müşteri Bazlı"  icon={I.group}  color="var(--inf)" entries={byCustomer} />

@@ -24,7 +24,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const [extras, setExtras]       = useState({});
   const [flash, setFlash]         = useState("ready");
   const [custModal, setCustModal] = useState(false);
-  const [customer, setCustomer]   = useState(customerList[0] || "");
+  const [customer, setCustomer]   = useState(""); // Default to empty string
   const [camActive, setCamActive] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
   const [scanPulse, setScanPulse] = useState(false);
@@ -37,6 +37,8 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const [inheritModal, setInheritModal] = useState(false);
   const recentRef = useRef(new Map());
   const onBarcodeRef = useRef(null);
+  const firstFieldRef = useRef(null);
+  const expectedBarcodeLength = useRef(null);
 
   // Vardiya devralma: giriş anında kontrol
   const [showTakeoverPrompt, setShowTakeoverPrompt] = useState(false);
@@ -70,9 +72,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const [adminShift, setAdminShift] = useState(() => getCurrentShift());
   const currentShift = isAdmin ? adminShift : getCurrentShift();
 
-  useEffect(() => {
-    if (customerList.length && !customer) setCustomer(customerList[0]);
-  }, [customerList]);
+  // Removed automatic customer selection - default to empty
 
   useEffect(() => {
     if (typeof BarcodeDetector !== "undefined") {
@@ -98,19 +98,44 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
   /* ── Camera ── */
   const startCamera = async () => {
-    if (!navigator.mediaDevices?.getUserMedia) { toast("Bu tarayıcı kamera erişimini desteklemiyor.", "var(--err)"); return; }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      toast("Bu tarayıcı kamera erişimini desteklemiyor.", "var(--err)");
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" }
+        video: {
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
       });
       streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        // Wait for video to be ready
+        await new Promise((resolve) => {
+          if (videoRef.current) {
+            videoRef.current.onloadedmetadata = () => {
+              videoRef.current?.play().then(resolve).catch(resolve);
+            };
+          } else {
+            resolve();
+          }
+        });
+      }
       trackRef.current = stream.getVideoTracks ? (stream.getVideoTracks()[0] || null) : null;
       setTorchOn(false);
       setCamActive(true);
-      if (detRef.current) requestAnimationFrame(detectFrame);
-      else toast("Bu tarayıcı otomatik barkod tespitini desteklemiyor. Manuel giriş yapın.", "var(--acc)");
+
+      if (detRef.current) {
+        // Start detection loop
+        rafRef.current = requestAnimationFrame(detectFrame);
+      } else {
+        toast("Bu tarayıcı otomatik barkod tespitini desteklemiyor. Manuel giriş yapın.", "var(--acc)");
+      }
     } catch (e) {
+      console.error('Camera error:', e);
       toast("Kamera izni alınamadı: " + e.message, "var(--err)");
     }
   };
@@ -132,22 +157,46 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   // ZXing fallback
   useEffect(() => {
     if (!camActive) return;
-    if (detRef.current) return;
+    if (detRef.current) return;  // Use native BarcodeDetector if available
+
     const reader = new BrowserMultiFormatReader();
     let active = true;
+
     (async () => {
       try {
         if (!videoRef.current) return;
         await reader.decodeFromVideoDevice(undefined, videoRef.current, (res, err) => {
           if (!active) return;
-          if (res) onBarcodeRef.current(res.getText());
+          if (res) {
+            const code = res.getText();
+            console.log('ZXing detected barcode:', code);
+
+            // Process barcode similar to native detector
+            setScanPulse(true);
+            setTimeout(() => setScanPulse(false), 220);
+
+            if (!bulkMode) {
+              stopCamera();
+            }
+
+            if (addDetailAfterScan) {
+              setPendingBc(code);
+              setBarcode(code);
+            } else {
+              onBarcodeRef.current(code);
+            }
+          }
         });
       } catch (e) {
-        // ignore
+        console.warn('ZXing error:', e);
       }
     })();
-    return () => { active = false; try { reader.reset(); } catch {} };
-  }, [camActive]);
+
+    return () => {
+      active = false;
+      try { reader.reset(); } catch {}
+    };
+  }, [camActive, bulkMode, addDetailAfterScan]);
 
   const detectFrame = async () => {
     if (!videoRef.current || !detRef.current || !streamRef.current) return;
@@ -157,12 +206,30 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
         const code = barcodes[0].rawValue;
         setScanPulse(true);
         setTimeout(() => setScanPulse(false), 220);
-        if (!bulkMode) stopCamera();
-        if (addDetailAfterScan) { setPendingBc(code); setBarcode(code); }
-        else onBarcode(code);
+
+        // Only stop camera in non-bulk mode
+        if (!bulkMode) {
+          stopCamera();
+        }
+
+        // Show detail form if setting is enabled, otherwise process barcode directly
+        if (addDetailAfterScan) {
+          setPendingBc(code);
+          setBarcode(code);
+        } else {
+          onBarcode(code);
+        }
+
+        // In bulk mode, continue scanning
+        if (bulkMode) {
+          rafRef.current = requestAnimationFrame(detectFrame);
+        }
         return;
       }
-    } catch {}
+    } catch (err) {
+      // Log error for debugging but continue scanning
+      console.warn('Barcode detection error:', err);
+    }
     rafRef.current = requestAnimationFrame(detectFrame);
   };
 
@@ -186,6 +253,21 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   });
   const canAcceptCode = (bc) => {
     if (!bc) return { ok:false, msg:null };
+
+    // Barcode length validation
+    if (scanSettings.enforceBarcodeLengthMatch) {
+      if (expectedBarcodeLength.current === null) {
+        // First barcode - set the expected length
+        expectedBarcodeLength.current = bc.length;
+      } else if (bc.length !== expectedBarcodeLength.current) {
+        // Length mismatch
+        return {
+          ok: false,
+          msg: `⚠ Barkod uzunluğu ${expectedBarcodeLength.current} olmalı (okunan: ${bc.length})`
+        };
+      }
+    }
+
     const now = Date.now();
     const last = recentRef.current.get(bc);
     if (last && (now - last) < (scanSettings.scanDebounceMs || 800)) return { ok:false, msg:"⚠ Çift okuma engellendi" };
@@ -324,12 +406,43 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     if (e.key !== "Enter") return;
     e.preventDefault();
     const bc = barcode.trim();
-    if (addDetailAfterScan && bc && !pendingBc) { setPendingBc(bc); return; }
-    if (pendingBc) { doSave(); return; }
+    // Show detail form if setting is enabled, otherwise use autoSave behavior
+    if (addDetailAfterScan && bc && !pendingBc) {
+      setPendingBc(bc);
+      return;
+    }
+    if (pendingBc) {
+      doSave();
+      return;
+    }
     if (autoSave) onBarcode(bc);
   };
 
   const extraFields = fields.filter(f => f.id !== "barcode");
+
+  // Auto-focus first field when detail form appears
+  useEffect(() => {
+    if (pendingBc && firstFieldRef.current) {
+      setTimeout(() => {
+        firstFieldRef.current?.focus();
+      }, 100);
+    }
+  }, [pendingBc]);
+
+  // Handle Enter key navigation in detail form
+  const handleFieldKeyDown = (e, fieldIndex) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (fieldIndex < extraFields.length - 1) {
+        // Move to next field
+        const nextInput = e.target.closest('.detail-form')?.querySelectorAll('input, select, textarea')[fieldIndex + 1];
+        nextInput?.focus();
+      } else {
+        // Last field - save
+        doSave();
+      }
+    }
+  };
 
   // BUG FIX: derive torchSupported from track capabilities
   const torchSupported = !!trackRef.current?.getCapabilities?.()?.torch;
@@ -373,13 +486,55 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
       {/* Müşteri */}
       <div className="cust-bar">
-        <Ic d={I.group} s={15} />
-        <span style={{ fontSize: 12, color: "var(--tx2)", fontWeight: 600, flexShrink: 0 }}>Müşteri:</span>
-        <button type="button" className="cust-btn" onClick={() => setCustModal(true)}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--inf)", flexShrink: 0 }} />
-          <span className="cust-name">{customer || "Seçilmedi"}</span>
-          <Ic d={I.chevD} s={13} />
-        </button>
+        <label className="lbl" style={{ marginBottom: 4, fontSize: 12 }}>Müşteri</label>
+        <div style={{ position: "relative" }}>
+          <input
+            type="text"
+            list="customer-suggestions"
+            value={customer}
+            onChange={e => setCustomer(e.target.value)}
+            placeholder="Müşteri adı girin veya seçin..."
+            style={{
+              width: "100%",
+              height: 40,
+              borderRadius: 10,
+              padding: "0 40px 0 12px",
+              background: "var(--s2)",
+              color: "var(--tx)",
+              border: "1.5px solid var(--brd)",
+              fontSize: 13,
+              fontWeight: 600
+            }}
+          />
+          <datalist id="customer-suggestions">
+            {customerList.map(c => <option key={c} value={c} />)}
+          </datalist>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setCustModal(true)}
+              style={{
+                position: "absolute",
+                right: 8,
+                top: "50%",
+                transform: "translateY(-50%)",
+                width: 28,
+                height: 28,
+                borderRadius: 6,
+                border: "none",
+                background: "var(--inf2)",
+                color: "var(--inf)",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center"
+              }}
+              title="Müşteri yönet"
+            >
+              <Ic d={I.settings} s={14} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Status */}
@@ -425,23 +580,20 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
           </div>
         </div>
       )}
-      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-        {!camActive
-          ? <button type="button" className="btn btn-ghost btn-full btn-sm" onClick={startCamera} disabled={shiftExpired && !isAdmin}><Ic d={I.camera} s={16} /> Kamerayı Aç</button>
-          : <button type="button" className="btn btn-danger btn-full btn-sm" onClick={stopCamera}><Ic d={I.camOff} s={16} /> Kapat</button>}
-      </div>
 
       {/* Detail form */}
       {pendingBc && addDetailAfterScan ? (
         <div className="detail-form">
           <div><label className="lbl">Taranan Barkod</label><div className="detail-bc">{pendingBc}</div></div>
-          {extraFields.map(f => (
+          {extraFields.map((f, i) => (
             <div key={f.id}>
               <label className="lbl">{f.label}{f.required ? " *" : ""}</label>
               <FieldInput
+                ref={i === 0 ? firstFieldRef : null}
                 field={f}
                 value={extras[f.id]}
                 onChange={(v) => setExtras(p => ({ ...p, [f.id]: v }))}
+                onKeyDown={(e) => handleFieldKeyDown(e, i)}
               />
             </div>
           ))}
@@ -466,6 +618,32 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
               autoComplete="off" autoCorrect="off"
               autoCapitalize="none" spellCheck={false} inputMode="text"
             />
+            <button
+              type="button"
+              onClick={camActive ? stopCamera : startCamera}
+              disabled={shiftExpired && !isAdmin}
+              style={{
+                position: "absolute",
+                right: 8,
+                top: "50%",
+                transform: "translateY(-50%)",
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                border: "none",
+                background: camActive ? "var(--err)" : "var(--inf2)",
+                color: camActive ? "#fff" : "var(--inf)",
+                cursor: shiftExpired && !isAdmin ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 18,
+                opacity: shiftExpired && !isAdmin ? 0.5 : 1
+              }}
+              title={camActive ? "Kamerayı Kapat" : "Kamerayı Aç"}
+            >
+              {camActive ? "✕" : "📷"}
+            </button>
           </div>
 
           {/* Toplu Mod */}
@@ -511,16 +689,18 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
             </div>
           )}
 
-          {/* Extra fields (visible only if no addDetailAfterScan) */}
+          {/* Extra fields (visible only if addDetailAfterScan is OFF) */}
           {!addDetailAfterScan && extraFields.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 10 }}>
-              {extraFields.map(f => (
+              {extraFields.map((f, i) => (
                 <div key={f.id}>
                   <label className="lbl">{f.label}{f.required ? " *" : ""}</label>
                   <FieldInput
+                    ref={i === 0 ? firstFieldRef : null}
                     field={f}
                     value={extras[f.id]}
                     onChange={(v) => setExtras(p => ({ ...p, [f.id]: v }))}
+                    onKeyDown={(e) => handleFieldKeyDown(e, i)}
                   />
                 </div>
               ))}
@@ -548,19 +728,26 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 6 }}>
           <div>
             <div style={{ fontSize: 12, color: 'var(--tx2)', fontWeight: 800 }}>Son Okutmalar</div>
-            {currentShift && <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: 2 }}>{currentShift}</div>}
           </div>
-          <div className="row" style={{ gap: 8 }}>
-            <button
-              className="btn btn-ghost btn-sm"
-              style={{ height: 26, fontSize: 11 }}
-              onClick={() => setInheritModal(true)}
-              title="Önceki vardiyadan kayıt kopyala"
-            >
-              <Ic d={I.upload} s={13} /> Devral
-            </button>
-            <span className="chip" style={{ fontWeight: 700, fontSize: 11 }}>{currentShift}</span>
-            <span className="chip">{fmtDate(nowTs())}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: "var(--inf)",
+              background: "var(--inf2)",
+              border: "1.5px solid var(--inf3)",
+              borderRadius: 8,
+              padding: "4px 10px"
+            }}>{currentShift}</span>
+            <span style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: "var(--tx)",
+              background: "var(--s2)",
+              border: "1.5px solid var(--brd)",
+              borderRadius: 8,
+              padding: "4px 10px"
+            }}>{fmtDate(nowTs())}</span>
           </div>
         </div>
 
@@ -610,8 +797,8 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
         />
       )}
 
-      {custModal && <CustomerModal customers={customerList} selected={customer}
-        onSelect={v => { setCustomer(v); scheduleFocus(); }} onClose={() => { setCustModal(false); scheduleFocus(); }}
+      {custModal && <CustomerModal customers={customerList}
+        onClose={() => { setCustModal(false); scheduleFocus(); }}
         onAdd={customers.add} onRemove={customers.remove} isAdmin={isAdmin} />}
     </div>
   );
