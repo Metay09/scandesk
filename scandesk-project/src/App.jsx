@@ -12,6 +12,7 @@ import { Ic, I } from "./components/Icon";
 import Login from "./components/Login";
 import ScanPage from "./components/ScanPage";
 import DataPage from "./components/DataPage";
+import ReportPage from "./components/ReportPage";
 import FieldsPage from "./components/FieldsPage";
 import UsersPage from "./components/UsersPage";
 import SettingsPage from "./components/SettingsPage";
@@ -32,6 +33,15 @@ export default function App() {
     gsheets:  { scriptUrl: "" },
   });
   const [hydrated, setHydrated] = useState(false);
+  const [theme, setTheme] = useState(() => localStorage.getItem("scandesk_theme") || "dark");
+
+  // Apply theme to document
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("scandesk_theme", theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(t => t === "dark" ? "light" : "dark");
 
   // Load persisted state on start
   useEffect(() => {
@@ -126,6 +136,12 @@ export default function App() {
     toast(type.toUpperCase() + " indirildi");
   };
 
+  const handleImport = (imported) => {
+    if (!imported.length) { toast("İçe aktarılacak veri yok", "var(--acc)"); return; }
+    setRecords(p => [...imported, ...p]);
+    toast(`✓ ${imported.length} kayıt içe aktarıldı`, "var(--ok)");
+  };
+
   const customers = {
     list: custList,
     add:    name => { if (!custList.includes(name)) setCustList(p => [...p, name]); },
@@ -135,6 +151,7 @@ export default function App() {
   const NAV = [
     { id: "scan",     label: "Tara",      icon: I.scan },
     { id: "data",     label: "Veriler",   icon: I.data },
+    { id: "report",   label: "Rapor",     icon: I.report },
     { id: "fields",   label: "Alanlar",   icon: I.fields },
     { id: "users",    label: "Kullanıcı", icon: I.users,    adminOnly: true },
     { id: "settings", label: "Ayarlar",   icon: I.settings },
@@ -151,6 +168,14 @@ export default function App() {
         <span style={{ flex: 1, textAlign: "center", fontSize: 12, fontWeight: 700, color: "var(--tx2)" }}>
           {NAV.find(n => n.id === page)?.label}
         </span>
+        <button
+          className="btn btn-ghost btn-sm"
+          style={{ width: 36, height: 36, padding: 0, flexShrink: 0 }}
+          onClick={toggleTheme}
+          title={theme === "dark" ? "Açık tema" : "Koyu tema"}
+        >
+          <Ic d={theme === "dark" ? I.sun : I.moon} s={16} />
+        </button>
         <div className="user-pill">
           <div className="avatar" style={{ width: 26, height: 26, fontSize: 11 }}>{user.name[0]}</div>
           <span style={{ fontSize: 12, fontWeight: 600 }}>{user.name}</span>
@@ -179,6 +204,9 @@ export default function App() {
               <div style={{ fontSize: 10, color: "var(--tx2)" }}>@{user.username} · {isAdmin ? "Admin" : "Kullanıcı"}</div>
             </div>
           </div>
+          <button className="btn btn-ghost btn-full btn-sm" style={{ marginBottom: 8 }} onClick={toggleTheme}>
+            <Ic d={theme === "dark" ? I.sun : I.moon} s={13} /> {theme === "dark" ? "Açık Tema" : "Koyu Tema"}
+          </button>
           <button className="btn btn-ghost btn-full btn-sm" onClick={() => { setUser(null); setPage("scan"); }}>
             <Ic d={I.logout} s={13} /> Çıkış Yap
           </button>
@@ -188,7 +216,8 @@ export default function App() {
       {/* CONTENT */}
       <div className="scroll-area">
         {page === "scan"     && <ScanPage fields={fields} onSave={handleSave} onEdit={handleEdit} records={records} lastSaved={lastSaved} customers={customers} isAdmin={isAdmin} user={user} integration={integration} scanSettings={settings} toast={toast} currentShift={currentShift} setCurrentShift={setCurrentShift} shiftList={settings.shiftList || INITIAL_SETTINGS.shiftList} />}
-        {page === "data"     && <DataPage     fields={fields} records={records} onDelete={handleDelete} onEdit={handleEdit} onExport={handleExport} customers={customers} settings={settings} />}
+        {page === "data"     && <DataPage     fields={fields} records={records} onDelete={handleDelete} onEdit={handleEdit} onExport={handleExport} onImport={handleImport} customers={customers} settings={settings} toast={toast} />}
+        {page === "report"   && <ReportPage   records={records} fields={fields} />}
         {page === "fields"   && <FieldsPage   fields={fields} setFields={setFields} isAdmin={isAdmin} settings={settings} />}
         {page === "users"    && isAdmin && <UsersPage users={users} setUsers={setUsers} currentUser={user} toast={toast} />}
         {page === "settings" && <SettingsPage settings={settings} setSettings={setSettings} integration={integration} setIntegration={setIntegration} isAdmin={isAdmin} onClearData={handleClear} onDeleteRange={handleDeleteRange} records={records} toast={toast} />}

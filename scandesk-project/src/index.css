@@ -13,6 +13,16 @@ html,body,#root{height:100%;width:100%;}
   --r:10px;--r2:14px;
   --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
 }
+[data-theme="light"]{
+  --bg:#f0f2f5;--s1:#ffffff;--s2:#f5f6f8;--s3:#eaecf0;
+  --brd:#dde0e8;--brd2:#c8ccd6;
+  --acc:#d97706;--acc2:rgba(217,119,6,.1);--acc3:rgba(217,119,6,.3);
+  --ok:#16a34a;--ok2:rgba(22,163,74,.1);--ok3:rgba(22,163,74,.3);
+  --err:#dc2626;--err2:rgba(220,38,38,.1);--err3:rgba(220,38,38,.3);
+  --inf:#2563eb;--inf2:rgba(37,99,235,.1);--inf3:rgba(37,99,235,.3);
+  --pur:#9333ea;--pur2:rgba(147,51,234,.1);--pur3:rgba(147,51,234,.3);
+  --tx:#111827;--tx2:#6b7280;--tx3:#d1d5db;
+}
 body{background:var(--bg);color:var(--tx);font-family:var(--font);
   -webkit-text-size-adjust:100%;touch-action:manipulation;overflow-x:hidden;}
 ::-webkit-scrollbar{width:4px;height:4px;}

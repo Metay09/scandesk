@@ -1,17 +1,73 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
+import * as XLSX from "xlsx";
 import { Ic, I } from "./Icon";
 import EditRecordModal from "./EditRecordModal";
+import { genId } from "../constants";
 
-export default function DataPage({ fields, records, onDelete, onEdit, onExport, customers, settings }) {
+export default function DataPage({ fields, records, onDelete, onEdit, onExport, onImport, customers, settings, toast }) {
   const [q, setQ]           = useState("");
   const [grouped, setGrouped] = useState(true);
   const [editRec, setEditRec] = useState(null);
   const [sel, setSel] = useState(() => new Set());
+  const importRef = useRef(null);
   const toggleSel = (id) => setSel(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const clearSel = () => setSel(new Set());
 
   // BUG FIX: derive customerList safely from customers prop
   const customerList = Array.isArray(customers) ? customers : (customers?.list || []);
+
+  const handleImportFile = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const wb = XLSX.read(ev.target.result, { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+        if (!rows.length) { toast && toast("Dosyada veri bulunamadı", "var(--acc)"); return; }
+        const allF = [{ id: "barcode", label: "Barkod" }, ...fields.filter(f => f.id !== "barcode")];
+        // Build label→id map for column matching
+        const labelMap = {};
+        allF.forEach(f => {
+          labelMap[f.label.toLowerCase()] = f.id;
+          labelMap[f.id.toLowerCase()] = f.id;
+        });
+        labelMap["müşteri"] = "customer";
+        labelMap["musteri"] = "customer";
+        labelMap["kaydeden"] = "scanned_by";
+        labelMap["kullanıcı adı"] = "scanned_by_username";
+        labelMap["kullanici adi"] = "scanned_by_username";
+        labelMap["tarih"] = "date";
+        labelMap["saat"] = "time";
+        labelMap["vardiya"] = "shift";
+        const imported = rows.map(row => {
+          const rec = { id: genId(), synced: false };
+          Object.entries(row).forEach(([col, val]) => {
+            const fid = labelMap[col.toLowerCase().trim()];
+            if (fid) rec[fid] = String(val ?? "");
+          });
+          if (!rec.barcode) return null;
+          // Build timestamp from date+time columns if available, otherwise use now
+          if (rec.date && rec.time) {
+            const parsed = new Date(`${rec.date}T${rec.time}`);
+            rec.timestamp = isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+          } else {
+            rec.timestamp = new Date().toISOString();
+          }
+          if (!rec.date) rec.date = rec.timestamp.slice(0, 10);
+          if (!rec.time) rec.time = rec.timestamp.slice(11, 16);
+          return rec;
+        }).filter(Boolean);
+        if (!imported.length) { toast && toast("Barkod sütunu bulunamadı", "var(--err)"); return; }
+        onImport(imported);
+      } catch (err) {
+        toast && toast("Dosya okunamadı: " + err.message, "var(--err)");
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
 
   const allF = [{ id: "barcode", label: "Barkod", type: "Metin" }, ...fields.filter(f => f.id !== "barcode")];
   const filtered = records.filter(r =>
@@ -71,6 +127,12 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
           <button className="btn btn-ghost btn-full" onClick={() => onExport("csv")}><Ic d={I.csv} s={15} /> CSV</button>
         </div>
       )}
+      <div style={{ marginBottom: 10 }}>
+        <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} onChange={handleImportFile} />
+        <button className="btn btn-ghost btn-full btn-sm" onClick={() => importRef.current?.click()}>
+          <Ic d={I.upload} s={15} /> Excel / CSV İçe Aktar
+        </button>
+      </div>
       {sel.size > 0 && (
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
           <button className="btn btn-danger btn-full" onClick={() => {
