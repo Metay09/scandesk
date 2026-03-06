@@ -24,7 +24,14 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const [extras, setExtras]       = useState({});
   const [flash, setFlash]         = useState("ready");
   const [custModal, setCustModal] = useState(false);
-  const [customer, setCustomer]   = useState(""); // Default to empty string
+  const [customer, setCustomer]   = useState(() => {
+    // Load from localStorage, default to empty string
+    try {
+      return localStorage.getItem("scandesk_default_customer") || "";
+    } catch {
+      return "";
+    }
+  });
   const [camActive, setCamActive] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
   const [scanPulse, setScanPulse] = useState(false);
@@ -72,7 +79,14 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const [adminShift, setAdminShift] = useState(() => getCurrentShift());
   const currentShift = isAdmin ? adminShift : getCurrentShift();
 
-  // Removed automatic customer selection - default to empty
+  // Persist customer selection to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem("scandesk_default_customer", customer);
+    } catch (e) {
+      console.error("Failed to save customer to localStorage:", e);
+    }
+  }, [customer]);
 
   useEffect(() => {
     if (typeof BarcodeDetector !== "undefined") {
@@ -507,6 +521,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
             }}
           />
           <datalist id="customer-suggestions">
+            <option value="-Boş-" />
             {customerList.map(c => <option key={c} value={c} />)}
           </datalist>
           {isAdmin && (
@@ -561,7 +576,10 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
                   className="cam-ic"
                   onClick={() => toggleTorch()}
                   title="Flaş"
-                >⚡</button>
+                  style={{ background: torchOn ? 'rgba(255,220,0,.75)' : 'rgba(0,0,0,.55)' }}
+                >
+                  <Ic d={I.zap} s={16} />
+                </button>
               )}
               <button type="button" className="cam-ic" onClick={stopCamera} title="Kapat">✕</button>
             </div>
@@ -637,12 +655,11 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: 18,
                 opacity: shiftExpired && !isAdmin ? 0.5 : 1
               }}
               title={camActive ? "Kamerayı Kapat" : "Kamerayı Aç"}
             >
-              {camActive ? "✕" : "📷"}
+              {camActive ? <Ic d={I.x} s={18} /> : <Ic d={I.camera} s={18} />}
             </button>
           </div>
 

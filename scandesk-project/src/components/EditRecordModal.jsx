@@ -34,6 +34,7 @@ export default function EditRecordModal({ record, fields, customers, onSave, onC
           placeholder="Müşteri adı girin veya seçin..."
         />
         <datalist id="edit-customer-suggestions">
+          <option value="-Boş-" />
           <option value="" />
           {customers.map(c => <option key={c} value={c} />)}
         </datalist>

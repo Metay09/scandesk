@@ -179,7 +179,7 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
           <button className="btn btn-ghost btn-full" onClick={() => onExport("csv")}><Ic d={I.csv} s={15} /> CSV</button>
         </div>
       )}
-      <div style={{ marginBottom: 10 }}>
+      <div className="export-row">
         <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} onChange={handleImportFile} />
         <button className="btn btn-ghost btn-full btn-sm" onClick={() => importRef.current?.click()}>
           <Ic d={I.upload} s={15} /> Excel / CSV İçe Aktar
