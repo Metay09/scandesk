@@ -8,7 +8,7 @@ import EditRecordModal from "./EditRecordModal";
 import CustomerModal from "./CustomerModal";
 import ShiftInheritModal from "./ShiftInheritModal";
 
-export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdmin, user, integration, scanSettings, toast }) {
+export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdmin, user, integration, scanSettings, toast, shiftExpired = false }) {
   const customerList = Array.isArray(customers) ? customers : (customers?.list || []);
   const today = fmtDate();
   const inputRef  = useRef(null);
@@ -167,6 +167,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   };
 
   const onBarcode = (code) => {
+    if (shiftExpired && !isAdmin) { toast("Vardiya sona erdi — okutma devre dışı", "var(--err)"); return false; }
     const bc = normalizeCode(code);
     const chk = canAcceptCode(bc);
     if (!chk.ok) {
@@ -323,6 +324,17 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
         <span style={{ marginLeft: isAdmin ? 0 : "auto", color: "var(--tx3)", fontFamily: "var(--mono)", fontSize: 11 }}>{fmtTime()}</span>
       </div>
 
+      {/* Vardiya sona erdi uyarısı */}
+      {shiftExpired && !isAdmin && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 8, marginBottom: 8,
+          padding: "10px 14px", background: "var(--err)", borderRadius: "var(--r)",
+          color: "#fff", fontSize: 13, fontWeight: 700
+        }}>
+          <Ic d={I.lock} s={16} /> Vardiyanız sona erdi. Okutma devre dışı — verilerinizi dışa aktarabilirsiniz.
+        </div>
+      )}
+
       {/* Müşteri */}
       <div className="cust-bar">
         <Ic d={I.group} s={15} />
@@ -379,7 +391,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
       )}
       <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
         {!camActive
-          ? <button type="button" className="btn btn-ghost btn-full btn-sm" onClick={startCamera}><Ic d={I.camera} s={16} /> Kamerayı Aç</button>
+          ? <button type="button" className="btn btn-ghost btn-full btn-sm" onClick={startCamera} disabled={shiftExpired && !isAdmin}><Ic d={I.camera} s={16} /> Kamerayı Aç</button>
           : <button type="button" className="btn btn-danger btn-full btn-sm" onClick={stopCamera}><Ic d={I.camOff} s={16} /> Kapat</button>}
       </div>
 
@@ -415,7 +427,8 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
               value={barcode}
               onChange={e => setBarcode(e.target.value)}
               onKeyDown={handleKey}
-              placeholder="Barkod okutun veya girin..."
+              placeholder={shiftExpired && !isAdmin ? "Vardiya sona erdi — okutma devre dışı" : "Barkod okutun veya girin..."}
+              disabled={shiftExpired && !isAdmin}
               autoComplete="off" autoCorrect="off"
               autoCapitalize="none" spellCheck={false} inputMode="text"
             />

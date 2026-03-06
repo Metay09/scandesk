@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 import "./index.css";
 import { INITIAL_USERS, INITIAL_SETTINGS, INITIAL_FIELDS, DEFAULT_CUSTS } from "./constants";
 import { isNative, loadState, saveState } from "./services/storage";
+import { getCurrentShift, pad2 } from "./utils";
 import { useToast } from "./hooks/useToast";
 import { Ic, I } from "./components/Icon";
 import Login from "./components/Login";
@@ -32,6 +33,8 @@ export default function App() {
   });
   const [hydrated, setHydrated] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem("scandesk_theme") || "dark");
+  const [userLoginShift, setUserLoginShift] = useState(null);
+  const [graceSecsLeft, setGraceSecsLeft] = useState(null);
 
   // Apply theme to document
   useEffect(() => {
@@ -74,6 +77,45 @@ export default function App() {
   const { toasts, add: toast } = useToast();
 
   const isAdmin = user?.role === "admin";
+
+  const handleLogout = useCallback(() => {
+    setUser(null);
+    setPage("scan");
+    setUserLoginShift(null);
+    setGraceSecsLeft(null);
+  }, []);
+
+  const handleLogin = useCallback((u) => {
+    setUser(u);
+    setPage("scan");
+    setGraceSecsLeft(null);
+    if (u.role !== "admin") {
+      setUserLoginShift(getCurrentShift());
+    } else {
+      setUserLoginShift(null);
+    }
+  }, []);
+
+  // Vardiya bitimi algılama — sadece normal kullanıcılar için
+  useEffect(() => {
+    if (!user || isAdmin || !userLoginShift) return;
+    const id = setInterval(() => {
+      const current = getCurrentShift();
+      if (current !== userLoginShift) {
+        setGraceSecsLeft(prev => prev === null ? 300 : prev);
+        setPage(prev => prev === "scan" ? "data" : prev);
+      }
+    }, 15_000);
+    return () => clearInterval(id);
+  }, [user, isAdmin, userLoginShift]);
+
+  // 5 dakika geri sayım + otomatik çıkış
+  useEffect(() => {
+    if (graceSecsLeft === null || !user) return;
+    if (graceSecsLeft === 0) { handleLogout(); return; }
+    const id = setTimeout(() => setGraceSecsLeft(s => (s !== null && s > 0) ? s - 1 : s), 1000);
+    return () => clearTimeout(id);
+  }, [graceSecsLeft, user, handleLogout]);
 
   const handleSave   = useCallback(r => { setRecords(p => [r, ...p]); setLastSaved(r); }, []);
   const handleDelete = id => { setRecords(p => p.filter(r => r.id !== id)); setLastSaved(p => (p && p.id === id ? null : p)); toast("Kayıt silindi", "var(--err)"); };
@@ -157,10 +199,7 @@ export default function App() {
     setUsers(p => p.map(u => u.id === userId ? { ...u, password: hashed } : u));
   };
 
-  if (!user) return <Login users={users} onLogin={(u) => {
-    setUser(u);
-    setPage("scan");
-  }} onMigratePassword={handleMigratePassword} />;
+  if (!user) return <Login users={users} onLogin={handleLogin} onMigratePassword={handleMigratePassword} />;
 
   return (
     <div className="shell">
@@ -212,12 +251,12 @@ export default function App() {
 
       {/* CONTENT */}
       <div className="scroll-area">
-        {page === "scan"     && <ScanPage fields={fields} onSave={handleSave} onEdit={handleEdit} records={records} lastSaved={lastSaved} customers={customers} isAdmin={isAdmin} user={user} integration={integration} scanSettings={settings} toast={toast} />}
+        {page === "scan"     && <ScanPage fields={fields} onSave={handleSave} onEdit={handleEdit} records={records} lastSaved={lastSaved} customers={customers} isAdmin={isAdmin} user={user} integration={integration} scanSettings={settings} toast={toast} shiftExpired={graceSecsLeft !== null && !isAdmin} />}
         {page === "data"     && <DataPage     fields={fields} records={records} onDelete={handleDelete} onEdit={handleEdit} onExport={handleExport} onImport={handleImport} customers={customers} settings={settings} toast={toast} isAdmin={isAdmin} />}
         {page === "report"   && <ReportPage   records={records} fields={fields} />}
         {page === "fields"   && <FieldsPage   fields={fields} setFields={setFields} isAdmin={isAdmin} settings={settings} />}
         {page === "users"    && isAdmin && <UsersPage users={users} setUsers={setUsers} currentUser={user} toast={toast} />}
-        {page === "settings" && <SettingsPage settings={settings} setSettings={setSettings} integration={integration} setIntegration={setIntegration} isAdmin={isAdmin} onClearData={handleClear} onDeleteRange={handleDeleteRange} records={records} toast={toast} user={user} onLogout={() => { setUser(null); setPage("scan"); }} theme={theme} onToggleTheme={toggleTheme} />}
+        {page === "settings" && <SettingsPage settings={settings} setSettings={setSettings} integration={integration} setIntegration={setIntegration} isAdmin={isAdmin} onClearData={handleClear} onDeleteRange={handleDeleteRange} records={records} toast={toast} user={user} onLogout={handleLogout} theme={theme} onToggleTheme={toggleTheme} />}
       </div>
 
       {/* BOTTOM NAV (mobile) */}
@@ -229,6 +268,29 @@ export default function App() {
           </button>
         ))}
       </nav>
+
+      {/* GRACE PERIOD BANNER */}
+      {graceSecsLeft !== null && !isAdmin && (
+        <div style={{
+          position: "fixed", bottom: 56, left: 0, right: 0, zIndex: 9000,
+          background: "var(--err)", color: "#fff",
+          padding: "10px 16px", display: "flex", alignItems: "center",
+          gap: 10, fontSize: 13, fontWeight: 700,
+          boxShadow: "0 -2px 12px rgba(0,0,0,.4)"
+        }}>
+          <Ic d={I.lock} s={16} />
+          <span style={{ flex: 1 }}>
+            Vardiya sona erdi — çıkışa {Math.floor(graceSecsLeft / 60)}:{pad2(graceSecsLeft % 60)} kaldı
+          </span>
+          <button
+            className="btn btn-sm"
+            style={{ background: "rgba(255,255,255,.2)", color: "#fff", border: "1px solid rgba(255,255,255,.4)" }}
+            onClick={handleLogout}
+          >
+            <Ic d={I.logout} s={14} /> Çıkış Yap
+          </button>
+        </div>
+      )}
 
       {/* TOASTS */}
       <div className="toast-stack">
