@@ -713,24 +713,6 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
             </div>
           )}
 
-          {/* Extra fields (visible only if addDetailAfterScan is OFF) */}
-          {!addDetailAfterScan && extraFields.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 10 }}>
-              {extraFields.map((f, i) => (
-                <div key={f.id}>
-                  <label className="lbl">{f.label}{f.required ? " *" : ""}</label>
-                  <FieldInput
-                    ref={i === 0 ? firstFieldRef : null}
-                    field={f}
-                    value={extras[f.id]}
-                    onChange={(v) => setExtras(p => ({ ...p, [f.id]: v }))}
-                    onKeyDown={(e) => handleFieldKeyDown(e, i)}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-
           {!autoSave && (
             <button className="btn btn-ok btn-full btn-lg" style={{ marginBottom: 10 }} onClick={doSave}>
               <Ic d={I.save} s={20} /> Kaydet

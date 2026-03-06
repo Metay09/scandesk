@@ -14,6 +14,7 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
   const [shiftFilter, setShiftFilter] = useState("all");
   const [dateFilter, setDateFilter]   = useState("");   // "YYYY-MM-DD" ya da ""
   const [userFilter, setUserFilter]   = useState("all");
+  const [customerFilter, setCustomerFilter] = useState("all");
   const [showShiftCol, setShowShiftCol] = useState(false); // Vardiya kolonu varsayılan gizli
   const [pendingImport, setPendingImport] = useState(null); // Admin approval için bekleyen import
   const importRef = useRef(null);
@@ -124,10 +125,12 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
   const visibleRecords = records;
   const allShifts = isAdmin ? [...new Set(visibleRecords.map(r => r.shift).filter(Boolean))].sort() : [];
   const allUsers  = [...new Set(visibleRecords.map(r => r.scanned_by_username).filter(Boolean))].sort();
+  const allCustomers = [...new Set(visibleRecords.map(r => r.customer).filter(Boolean))].sort();
   const filtered = visibleRecords.filter(r => {
     if (isAdmin && shiftFilter !== "all" && r.shift !== shiftFilter) return false;
     if (dateFilter && r.date !== dateFilter) return false;
     if (userFilter !== "all" && r.scanned_by_username !== userFilter) return false;
+    if (customerFilter !== "all" && r.customer !== customerFilter) return false;
     if (!q) return true;
     return [...allF, { id: "customer" }, { id: "scanned_by" }, { id: "shift" }].some(f =>
       String(r[f.id] ?? "").toLowerCase().includes(q.toLowerCase())
@@ -242,12 +245,25 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
               </select>
             </div>
           )}
+          {allCustomers.length > 0 && (
+            <div style={{ flex: "1 1 140px", minWidth: 120 }}>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx2)", marginBottom: 4 }}>Müşteri</label>
+              <select
+                value={customerFilter}
+                onChange={e => setCustomerFilter(e.target.value)}
+                style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: 600 }}
+              >
+                <option value="all">Tümü</option>
+                {allCustomers.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          )}
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {(dateFilter || (isAdmin && shiftFilter !== "all") || userFilter !== "all") && (
+          {(dateFilter || (isAdmin && shiftFilter !== "all") || userFilter !== "all" || customerFilter !== "all") && (
             <button
               className="btn btn-ghost btn-sm"
-              onClick={() => { setDateFilter(""); if (isAdmin) setShiftFilter("all"); setUserFilter("all"); }}
+              onClick={() => { setDateFilter(""); if (isAdmin) setShiftFilter("all"); setUserFilter("all"); setCustomerFilter("all"); }}
             >
               <Ic d={I.close} s={14} /> Filtreleri Temizle
             </button>
