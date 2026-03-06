@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
+import { App as CapApp } from "@capacitor/app";
 import * as XLSX from "xlsx";
 
 import "./index.css";
@@ -38,6 +39,9 @@ export default function App() {
   const inGraceRef = useRef(false);
   const [shiftTakeovers, setShiftTakeovers] = useState({});
   const [logoutReason, setLogoutReason] = useState(null);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const backPressCountRef = useRef(0);
+  const backPressTimerRef = useRef(null);
 
   // Apply theme to document
   useEffect(() => {
@@ -46,6 +50,65 @@ export default function App() {
   }, [theme]);
 
   const toggleTheme = () => setTheme(t => t === "dark" ? "light" : "dark");
+
+  // Back button handler (3-level navigation)
+  useEffect(() => {
+    let listener;
+
+    const handleBackButton = () => {
+      // Clear any existing timer
+      if (backPressTimerRef.current) {
+        clearTimeout(backPressTimerRef.current);
+      }
+
+      backPressCountRef.current += 1;
+      const pressCount = backPressCountRef.current;
+
+      // Reset counter after 2 seconds of inactivity
+      backPressTimerRef.current = setTimeout(() => {
+        backPressCountRef.current = 0;
+        setShowExitConfirm(false);
+      }, 2000);
+
+      // 1st press: Navigate to scan page if not already there
+      if (pressCount === 1) {
+        if (page !== "scan") {
+          setPage("scan");
+          backPressCountRef.current = 0; // Reset after navigation
+        }
+        return;
+      }
+
+      // 2nd press: Show exit confirmation (only on scan page)
+      if (pressCount === 2 && page === "scan") {
+        setShowExitConfirm(true);
+        return;
+      }
+
+      // 3rd press: Exit app (only if on scan page and confirmation shown)
+      if (pressCount === 3 && page === "scan" && showExitConfirm) {
+        CapApp.exitApp();
+        return;
+      }
+    };
+
+    // Register back button listener for native apps
+    CapApp.addListener('backButton', handleBackButton).then(result => {
+      listener = result;
+    }).catch(() => {
+      // Back button not available (web browser)
+      console.log('Back button listener not available - running in browser');
+    });
+
+    return () => {
+      if (listener) {
+        listener.remove();
+      }
+      if (backPressTimerRef.current) {
+        clearTimeout(backPressTimerRef.current);
+      }
+    };
+  }, [page, showExitConfirm]);
 
   // Load persisted state on start
   useEffect(() => {
@@ -319,6 +382,40 @@ export default function App() {
           >
             <Ic d={I.logout} s={14} /> Çıkış Yap
           </button>
+        </div>
+      )}
+
+      {/* EXIT CONFIRMATION MODAL */}
+      {showExitConfirm && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 10000,
+          background: "rgba(0,0,0,.7)", backdropFilter: "blur(4px)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          padding: 20
+        }}>
+          <div style={{
+            background: "var(--card)", borderRadius: "var(--r)",
+            border: "1.5px solid var(--brd)", padding: 20,
+            maxWidth: 360, width: "100%",
+            boxShadow: "0 8px 32px rgba(0,0,0,.4)"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+              <Ic d={I.warning} s={20} />
+              <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>Uygulamadan Çık</h3>
+            </div>
+            <p style={{ fontSize: 14, color: "var(--tx2)", marginBottom: 20 }}>
+              Uygulamayı kapatmak istediğinizden emin misiniz? Geri tuşuna bir kez daha basın.
+            </p>
+            <button
+              className="btn btn-ghost btn-full"
+              onClick={() => {
+                setShowExitConfirm(false);
+                backPressCountRef.current = 0;
+              }}
+            >
+              İptal
+            </button>
+          </div>
         </div>
       )}
 

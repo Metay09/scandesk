@@ -72,6 +72,7 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
         <div className="section-hd">Güvenlik & İzinler</div>
         <div className="s-card">
           <Row icon={I.xlsx}  label="Dışa Aktarmaya İzin Ver"><Toggle value={settings.allowExport}     onChange={v => set("allowExport", v)} /></Row>
+          <Row icon={I.upload}  label="İçe Aktarmaya İzin Ver"><Toggle value={settings.allowImport}     onChange={v => set("allowImport", v)} /></Row>
           <Row icon={I.trash} label="Verileri Temizlemeye İzin Ver"><Toggle value={settings.allowClearData}  onChange={v => set("allowClearData", v)} /></Row>
           <Row icon={I.plus}  label="Alan Eklemeye İzin Ver"><Toggle value={settings.allowAddField}    onChange={v => set("allowAddField", v)} /></Row>
           <Row icon={I.edit}  label="Alan Düzenlemeye İzin Ver"><Toggle value={settings.allowEditField}   onChange={v => set("allowEditField", v)} /></Row>

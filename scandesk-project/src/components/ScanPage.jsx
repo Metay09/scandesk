@@ -24,7 +24,14 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const [extras, setExtras]       = useState({});
   const [flash, setFlash]         = useState("ready");
   const [custModal, setCustModal] = useState(false);
-  const [customer, setCustomer]   = useState(""); // Default to empty string
+  const [customer, setCustomer]   = useState(() => {
+    // Load from localStorage, default to empty string
+    try {
+      return localStorage.getItem("scandesk_default_customer") || "";
+    } catch {
+      return "";
+    }
+  });
   const [camActive, setCamActive] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
   const [scanPulse, setScanPulse] = useState(false);
@@ -72,7 +79,14 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const [adminShift, setAdminShift] = useState(() => getCurrentShift());
   const currentShift = isAdmin ? adminShift : getCurrentShift();
 
-  // Removed automatic customer selection - default to empty
+  // Persist customer selection to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem("scandesk_default_customer", customer);
+    } catch (e) {
+      console.error("Failed to save customer to localStorage:", e);
+    }
+  }, [customer]);
 
   useEffect(() => {
     if (typeof BarcodeDetector !== "undefined") {
@@ -470,7 +484,16 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
         ) : (
           <span style={{ fontWeight: 800, color: "var(--acc)" }}>{currentShift}</span>
         )}
-        <span style={{ marginLeft: isAdmin ? 0 : "auto", color: "var(--tx3)", fontFamily: "var(--mono)", fontSize: 11 }}>{fmtTime()}</span>
+        <span style={{
+          fontSize: 12,
+          fontWeight: 600,
+          color: "var(--tx)",
+          background: "var(--s2)",
+          border: "1.5px solid var(--brd)",
+          borderRadius: 8,
+          padding: "4px 10px"
+        }}>{fmtDate(nowTs())}</span>
+        <span style={{ color: "var(--tx3)", fontFamily: "var(--mono)", fontSize: 11 }}>{fmtTime()}</span>
       </div>
 
       {/* Vardiya sona erdi uyarısı */}
@@ -507,33 +530,32 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
             }}
           />
           <datalist id="customer-suggestions">
+            <option value="-Boş-" />
             {customerList.map(c => <option key={c} value={c} />)}
           </datalist>
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={() => setCustModal(true)}
-              style={{
-                position: "absolute",
-                right: 8,
-                top: "50%",
-                transform: "translateY(-50%)",
-                width: 28,
-                height: 28,
-                borderRadius: 6,
-                border: "none",
-                background: "var(--inf2)",
-                color: "var(--inf)",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center"
-              }}
-              title="Müşteri yönet"
-            >
-              <Ic d={I.settings} s={14} />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setCustModal(true)}
+            style={{
+              position: "absolute",
+              right: 8,
+              top: "50%",
+              transform: "translateY(-50%)",
+              width: 28,
+              height: 28,
+              borderRadius: 6,
+              border: "none",
+              background: "var(--inf2)",
+              color: "var(--inf)",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center"
+            }}
+            title="Müşteri yönet"
+          >
+            <Ic d={I.settings} s={14} />
+          </button>
         </div>
       </div>
 
@@ -561,7 +583,10 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
                   className="cam-ic"
                   onClick={() => toggleTorch()}
                   title="Flaş"
-                >⚡</button>
+                  style={{ background: torchOn ? 'rgba(255,220,0,.75)' : 'rgba(0,0,0,.55)' }}
+                >
+                  <Ic d={I.zap} s={16} />
+                </button>
               )}
               <button type="button" className="cam-ic" onClick={stopCamera} title="Kapat">✕</button>
             </div>
@@ -637,12 +662,11 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: 18,
                 opacity: shiftExpired && !isAdmin ? 0.5 : 1
               }}
               title={camActive ? "Kamerayı Kapat" : "Kamerayı Aç"}
             >
-              {camActive ? "✕" : "📷"}
+              {camActive ? <Ic d={I.x} s={18} /> : <Ic d={I.camera} s={18} />}
             </button>
           </div>
 
@@ -689,24 +713,6 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
             </div>
           )}
 
-          {/* Extra fields (visible only if addDetailAfterScan is OFF) */}
-          {!addDetailAfterScan && extraFields.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 10 }}>
-              {extraFields.map((f, i) => (
-                <div key={f.id}>
-                  <label className="lbl">{f.label}{f.required ? " *" : ""}</label>
-                  <FieldInput
-                    ref={i === 0 ? firstFieldRef : null}
-                    field={f}
-                    value={extras[f.id]}
-                    onChange={(v) => setExtras(p => ({ ...p, [f.id]: v }))}
-                    onKeyDown={(e) => handleFieldKeyDown(e, i)}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-
           {!autoSave && (
             <button className="btn btn-ok btn-full btn-lg" style={{ marginBottom: 10 }} onClick={doSave}>
               <Ic d={I.save} s={20} /> Kaydet
@@ -725,31 +731,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
       {/* Son Okutmalar */}
       <div style={{ marginTop: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 6 }}>
-          <div>
-            <div style={{ fontSize: 12, color: 'var(--tx2)', fontWeight: 800 }}>Son Okutmalar</div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{
-              fontSize: 12,
-              fontWeight: 700,
-              color: "var(--inf)",
-              background: "var(--inf2)",
-              border: "1.5px solid var(--inf3)",
-              borderRadius: 8,
-              padding: "4px 10px"
-            }}>{currentShift}</span>
-            <span style={{
-              fontSize: 12,
-              fontWeight: 600,
-              color: "var(--tx)",
-              background: "var(--s2)",
-              border: "1.5px solid var(--brd)",
-              borderRadius: 8,
-              padding: "4px 10px"
-            }}>{fmtDate(nowTs())}</span>
-          </div>
-        </div>
+        <div style={{ fontSize: 12, color: 'var(--tx2)', fontWeight: 800, marginBottom: 6 }}>Son Okutmalar</div>
 
         {(() => {
           const todayNow = fmtDate(nowTs());
