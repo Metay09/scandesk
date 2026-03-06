@@ -16,6 +16,7 @@ export const INITIAL_SETTINGS = {
   scanBoxSize: 0.72,
   recentLimit: 10,
   scanDebounceMs: 800,
+  enforceBarcodeLengthMatch: false,
 };
 
 export const INITIAL_FIELDS = [

@@ -65,6 +65,7 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
             <option value="1200">Yavaş (1200ms)</option>
           </select>
         </Row>
+        <Row icon={I.barcode} label="Barkod Uzunluk Kontrolü" sub="İlk okutulan barkod uzunluğu ile devam eder, yanlış okumayı önler"><Toggle value={settings.enforceBarcodeLengthMatch} onChange={v => set("enforceBarcodeLengthMatch", v)} /></Row>
       </div>
 
       {isAdmin && <>

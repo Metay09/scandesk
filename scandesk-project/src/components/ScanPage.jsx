@@ -37,6 +37,8 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const [inheritModal, setInheritModal] = useState(false);
   const recentRef = useRef(new Map());
   const onBarcodeRef = useRef(null);
+  const firstFieldRef = useRef(null);
+  const expectedBarcodeLength = useRef(null);
 
   // Vardiya devralma: giriş anında kontrol
   const [showTakeoverPrompt, setShowTakeoverPrompt] = useState(false);
@@ -156,8 +158,9 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
         setScanPulse(true);
         setTimeout(() => setScanPulse(false), 220);
         if (!bulkMode) stopCamera();
-        if (addDetailAfterScan) { setPendingBc(code); setBarcode(code); }
-        else onBarcode(code);
+        // Always show detail form after scan
+        setPendingBc(code);
+        setBarcode(code);
         return;
       }
     } catch {}
@@ -184,6 +187,21 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   });
   const canAcceptCode = (bc) => {
     if (!bc) return { ok:false, msg:null };
+
+    // Barcode length validation
+    if (scanSettings.enforceBarcodeLengthMatch) {
+      if (expectedBarcodeLength.current === null) {
+        // First barcode - set the expected length
+        expectedBarcodeLength.current = bc.length;
+      } else if (bc.length !== expectedBarcodeLength.current) {
+        // Length mismatch
+        return {
+          ok: false,
+          msg: `⚠ Barkod uzunluğu ${expectedBarcodeLength.current} olmalı (okunan: ${bc.length})`
+        };
+      }
+    }
+
     const now = Date.now();
     const last = recentRef.current.get(bc);
     if (last && (now - last) < (scanSettings.scanDebounceMs || 800)) return { ok:false, msg:"⚠ Çift okuma engellendi" };
@@ -322,12 +340,36 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     if (e.key !== "Enter") return;
     e.preventDefault();
     const bc = barcode.trim();
-    if (addDetailAfterScan && bc && !pendingBc) { setPendingBc(bc); return; }
+    // Always show detail form when barcode is entered
+    if (bc && !pendingBc) { setPendingBc(bc); return; }
     if (pendingBc) { doSave(); return; }
-    if (autoSave) onBarcode(bc);
   };
 
   const extraFields = fields.filter(f => f.id !== "barcode");
+
+  // Auto-focus first field when detail form appears
+  useEffect(() => {
+    if (pendingBc && firstFieldRef.current) {
+      setTimeout(() => {
+        firstFieldRef.current?.focus();
+      }, 100);
+    }
+  }, [pendingBc]);
+
+  // Handle Enter key navigation in detail form
+  const handleFieldKeyDown = (e, fieldIndex) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (fieldIndex < extraFields.length - 1) {
+        // Move to next field
+        const nextInput = e.target.closest('.detail-form')?.querySelectorAll('input, select, textarea')[fieldIndex + 1];
+        nextInput?.focus();
+      } else {
+        // Last field - save
+        doSave();
+      }
+    }
+  };
 
   // BUG FIX: derive torchSupported from track capabilities
   const torchSupported = !!trackRef.current?.getCapabilities?.()?.torch;
@@ -472,16 +514,18 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
       </div>
 
       {/* Detail form */}
-      {pendingBc && addDetailAfterScan ? (
+      {pendingBc ? (
         <div className="detail-form">
           <div><label className="lbl">Taranan Barkod</label><div className="detail-bc">{pendingBc}</div></div>
-          {extraFields.map(f => (
+          {extraFields.map((f, i) => (
             <div key={f.id}>
               <label className="lbl">{f.label}{f.required ? " *" : ""}</label>
               <FieldInput
+                ref={i === 0 ? firstFieldRef : null}
                 field={f}
                 value={extras[f.id]}
                 onChange={(v) => setExtras(p => ({ ...p, [f.id]: v }))}
+                onKeyDown={(e) => handleFieldKeyDown(e, i)}
               />
             </div>
           ))}
@@ -546,22 +590,6 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
                 <div key={x.code} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 4px", borderBottom: i === bulkList.length - 1 ? "none" : "1px solid var(--brd)" }}>
                   <span className="bc" style={{ flex: 1 }}>{x.code}</span>
                   <button className="btn btn-danger btn-sm" style={{ height: 28 }} onClick={() => setBulkList(p => p.filter(y => y.code !== x.code))}><Ic d={I.del} s={12} /></button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Extra fields (visible only if no addDetailAfterScan) */}
-          {!addDetailAfterScan && extraFields.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 10 }}>
-              {extraFields.map(f => (
-                <div key={f.id}>
-                  <label className="lbl">{f.label}{f.required ? " *" : ""}</label>
-                  <FieldInput
-                    field={f}
-                    value={extras[f.id]}
-                    onChange={(v) => setExtras(p => ({ ...p, [f.id]: v }))}
-                  />
                 </div>
               ))}
             </div>
