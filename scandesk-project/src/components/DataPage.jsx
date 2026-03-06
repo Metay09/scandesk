@@ -6,7 +6,7 @@ import Modal from "./Modal";
 import { genId } from "../constants";
 import { toggleSetMember, getCustomerList } from "../utils";
 
-export default function DataPage({ fields, records, onDelete, onEdit, onExport, onImport, customers, settings, toast, isAdmin }) {
+export default function DataPage({ fields, records, onDelete, onEdit, onExport, onImport, customers, settings, toast, isAdmin, currentShift }) {
   const [q, setQ]           = useState("");
   const [grouped, setGrouped] = useState(true);
   const [editRec, setEditRec] = useState(null);
@@ -121,8 +121,8 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
   };
 
   const allF = [{ id: "barcode", label: "Barkod", type: "Metin" }, ...fields.filter(f => f.id !== "barcode")];
-  // Tüm kullanıcılar tüm kayıtları görebilir; admin vardiyaya göre filtreleyebilir
-  const visibleRecords = records;
+  // Admin tüm kayıtları görebilir; normal kullanıcılar sadece kendi vardiyalarındaki kayıtları görür
+  const visibleRecords = isAdmin ? records : records.filter(r => r.shift === currentShift);
   const allShifts = isAdmin ? [...new Set(visibleRecords.map(r => r.shift).filter(Boolean))].sort() : [];
   const allUsers  = [...new Set(visibleRecords.map(r => r.scanned_by_username).filter(Boolean))].sort();
   const allCustomers = [...new Set(visibleRecords.map(r => r.customer).filter(Boolean))].sort();
