@@ -394,52 +394,6 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
             </div>
           )}
 
-          {/* Son Okutmalar */}
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 6 }}>
-              <div>
-                <div style={{ fontSize: 12, color: 'var(--tx2)', fontWeight: 800 }}>Son Okutmalar</div>
-                {currentShift && <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: 2 }}>{currentShift}</div>}
-              </div>
-              <div className="row" style={{ gap: 8 }}>
-                <select
-                  value={currentShift}
-                  onChange={e => setCurrentShift(e.target.value)}
-                  style={{ height: 26, borderRadius: 10, padding: '0 8px', background: 'var(--s2)', color: 'var(--tx)', border: '1.5px solid var(--brd)', fontSize: 11, fontWeight: 700 }}
-                >
-                  {shiftList.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-                <span className="chip">{fmtDate(nowTs())}</span>
-              </div>
-            </div>
-
-            {(() => {
-              const todayNow = fmtDate(nowTs());
-              const all = (records || []).filter(r => r.shift === currentShift && r.date === todayNow).slice().sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
-              const lim = scanSettings.recentLimit;
-              const view = (lim === 0 || lim === "0" || lim === "full") ? all : all.slice(0, Number(lim || 10));
-              return (
-                <div style={{ maxHeight: 220, overflow: 'auto', border: '1.5px solid var(--brd)', borderRadius: 'var(--r)', padding: 8, background: 'var(--card)' }}>
-                  {view.length === 0 ? (
-                    <div style={{ color: 'var(--tx3)', fontSize: 12 }}>Henüz kayıt yok</div>
-                  ) : (
-                    view.map((r, i) => (
-                      <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 4px', borderBottom: i === view.length - 1 ? 'none' : '1px solid var(--brd)' }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div className="bc" style={{ fontWeight: 900 }}>{r.barcode}</div>
-                          <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 2 }}>
-                            {(r.scanned_by || '—')} · {(r.customer || '—')} &nbsp; {r.time || ''}
-                          </div>
-                        </div>
-                        <button className="btn btn-sm" style={{ height: 28 }} onClick={() => setEditDupRec(r)}><Ic d={I.edit} s={14} /> Düzenle</button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              );
-            })()}
-          </div>
-
           {/* Extra fields (visible only if no addDetailAfterScan) */}
           {!addDetailAfterScan && extraFields.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 10 }}>
@@ -472,6 +426,52 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
         <span>İmza: <b>{user.name}</b> ({user.username})</span>
         {autoSave && <span style={{ opacity: .7 }}>· otomatik kayıt</span>}
         {integration.active && <span style={{ marginLeft: "auto", opacity: .7, fontSize: 11 }}>→ {integration.type === "supabase" ? "Supabase" : "Sheets"}</span>}
+      </div>
+
+      {/* Son Okutmalar */}
+      <div style={{ marginTop: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 6 }}>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--tx2)', fontWeight: 800 }}>Son Okutmalar</div>
+            {currentShift && <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: 2 }}>{currentShift}</div>}
+          </div>
+          <div className="row" style={{ gap: 8 }}>
+            <select
+              value={currentShift}
+              onChange={e => setCurrentShift(e.target.value)}
+              style={{ height: 26, borderRadius: 10, padding: '0 8px', background: 'var(--s2)', color: 'var(--tx)', border: '1.5px solid var(--brd)', fontSize: 11, fontWeight: 700 }}
+            >
+              {shiftList.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <span className="chip">{fmtDate(nowTs())}</span>
+          </div>
+        </div>
+
+        {(() => {
+          const todayNow = fmtDate(nowTs());
+          const all = (records || []).filter(r => r.shift === currentShift && r.date === todayNow).slice().sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+          const lim = scanSettings.recentLimit;
+          const view = (lim === 0 || lim === "0" || lim === "full") ? all : all.slice(0, Number(lim || 10));
+          return (
+            <div style={{ maxHeight: 260, overflow: 'auto', border: '1.5px solid var(--brd)', borderRadius: 'var(--r)', padding: 8, background: 'var(--card)' }}>
+              {view.length === 0 ? (
+                <div style={{ color: 'var(--tx3)', fontSize: 12 }}>Henüz kayıt yok</div>
+              ) : (
+                view.map((r, i) => (
+                  <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 4px', borderBottom: i === view.length - 1 ? 'none' : '1px solid var(--brd)' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="bc" style={{ fontWeight: 900 }}>{r.barcode}</div>
+                      <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 2 }}>
+                        {(r.scanned_by || '—')} · {(r.customer || '—')} &nbsp; {r.time || ''}
+                      </div>
+                    </div>
+                    <button className="btn btn-sm" style={{ height: 28 }} onClick={() => setEditDupRec(r)}><Ic d={I.edit} s={14} /> Düzenle</button>
+                  </div>
+                ))
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {editDupRec && <EditRecordModal record={editDupRec} fields={fields} customers={customerList} onSave={(r)=>{ onEdit(r); setEditDupRec(null); }} onClose={()=>setEditDupRec(null)} />}
