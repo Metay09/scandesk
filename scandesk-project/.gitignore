@@ -4,3 +4,6 @@ dist
 *.local
 android/app/build
 android/.gradle
+android/app/src/main/assets/public
+android/capacitor-cordova-android-plugins/src/main/java
+android/capacitor-cordova-android-plugins/src/main/res

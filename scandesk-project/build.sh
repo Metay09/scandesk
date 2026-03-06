@@ -29,7 +29,9 @@ npx cap sync android
 
 # 5. APK üret
 echo "[5/5] APK üretiliyor..."
-cd android && ./gradlew assembleDebug
+cd android
+chmod +x gradlew
+./gradlew assembleDebug --no-daemon
 
 echo ""
 echo "=== TAMAMLANDI ==="
