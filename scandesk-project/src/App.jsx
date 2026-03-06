@@ -574,10 +574,18 @@ function CustomerModal({ customers, selected, onSelect, onClose, onAdd, onRemove
 /* ═══════════════════════════════════════════════════════════════════════════
    EDIT RECORD MODAL
 ═══════════════════════════════════════════════════════════════════════════ */
-function EditRecordModal({ record, fields, customers, onSave, onClose }) {
+function EditRecordModal({ record, fields, customers, onSave, onClose, isDuplicate }) {
   const [form, setForm] = useState({ ...record });
+  const [err, setErr]   = useState("");
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const allF = [{ id: "barcode", label: "Barkod", type: "Metin" }, ...fields.filter(f => f.id !== "barcode")];
+
+  const handleSave = () => {
+    if (!form.barcode?.trim()) { setErr("Barkod alanı boş olamaz."); return; }
+    onSave(form);
+    onClose();
+  };
+
   return (
     <div className="overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
@@ -586,6 +594,14 @@ function EditRecordModal({ record, fields, customers, onSave, onClose }) {
           <button className="x-btn" onClick={onClose}><Ic d={I.x} s={15} /></button>
         </div>
         <div className="modal-bd">
+          {/* Tekrar eden barkod uyarısı */}
+          {isDuplicate && (
+            <div className="err-msg" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Ic d={I.barcode} s={15} />
+              Bu barkod bu vardiyada zaten kayıtlı — mevcut kaydı düzenleyebilirsiniz.
+            </div>
+          )}
+          {err && <div className="err-msg">{err}</div>}
           {allF.map(f => (
             <div key={f.id}>
               <label className="lbl">{f.label}</label>
@@ -595,7 +611,7 @@ function EditRecordModal({ record, fields, customers, onSave, onClose }) {
                   </label>
                 : f.type === "Tarih" ? <input type="date" value={form[f.id] || ""} onChange={e => set(f.id, e.target.value)} />
                 : f.type === "Sayı"  ? <input type="number" inputMode="numeric" value={form[f.id] || ""} onChange={e => set(f.id, e.target.value)} />
-                : <input type="text" value={form[f.id] || ""} onChange={e => set(f.id, e.target.value)} />}
+                : <input type="text" value={form[f.id] || ""} onChange={e => { set(f.id, e.target.value); if (f.id === "barcode") setErr(""); }} />}
             </div>
           ))}
           <div>
@@ -610,7 +626,7 @@ function EditRecordModal({ record, fields, customers, onSave, onClose }) {
           </div>
         </div>
         <div className="modal-ft">
-          <button className="btn btn-ok" style={{ flex: 1 }} onClick={() => { onSave(form); onClose(); }}>
+          <button className="btn btn-ok" style={{ flex: 1 }} onClick={handleSave}>
             <Ic d={I.save} s={16} /> Güncelle
           </button>
           <button className="btn btn-ghost" style={{ width: 88 }} onClick={onClose}>İptal</button>
@@ -647,6 +663,8 @@ function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdm
   const [bulkMode, setBulkMode]   = useState(false);
   const [bulkList, setBulkList]   = useState([]); // {code, ts}
   const [editDupRec, setEditDupRec] = useState(null);
+  // true → modal, duplicate scan uyarısı gösterir; false → normal düzenleme
+  const [isDupAlert, setIsDupAlert] = useState(false);
   const recentRef = useRef(new Map()); // code -> ts (anti-spam)
 
   const { autoSave, addDetailAfterScan, vibration, beep, frontCamera, recentLimit = 10 } = scanSettings;
@@ -789,7 +807,7 @@ function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdm
     if (!chk.ok) {
       if (chk.dup) {
         const ex = findExistingRec(bc);
-        if (ex) setEditDupRec(ex);
+        if (ex) { setIsDupAlert(true); setEditDupRec(ex); }
       }
       if (chk.msg) toast(chk.msg, "var(--err)");
       if (scanSettings.vibration && navigator.vibrate) navigator.vibrate([120, 80, 120]);
@@ -820,6 +838,7 @@ function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdm
     if (!bc) { scheduleFocus(); return; }
     const ex = findExistingRec(bc);
     if (ex) {
+      setIsDupAlert(true);
       setEditDupRec(ex);
       toast("Bu barkod zaten kayıtlı. İstersen düzenle.", "var(--err)");
       if (vibration && navigator.vibrate) navigator.vibrate([120, 80, 120]);
@@ -906,16 +925,7 @@ function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdm
               <button
                 type="button"
                 className="cam-ic"
-                onClick={async () => {
-                  try {
-                    if (!torchSupported) { toast("Bu cihazda flaş desteklenmiyor", "var(--acc)"); return; }
-                    const next = !torchOn;
-                    setTorchOn(next);
-                    await toggleTorch(next);
-                  } catch (e) {
-                    toast("Flaş açılamadı", "var(--acc)");
-                  }
-                }}
+                onClick={toggleTorch}
                 title="Flaş"
               >⚡</button>
               <button type="button" className="cam-ic" onClick={stopCamera} title="Kapat">✕</button>
@@ -1012,7 +1022,7 @@ function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdm
           </div>
 
           {bulkMode && bulkList.length > 0 && (
-            <div style={{ marginBottom: 10, maxHeight: 160, overflow: "auto", border: "1.5px solid var(--brd)", borderRadius: "var(--r)", padding: 8, background: "var(--card)" }}>
+            <div style={{ marginBottom: 10, maxHeight: 160, overflow: "auto", border: "1.5px solid var(--brd)", borderRadius: "var(--r)", padding: 8, background: "var(--s1)" }}>
               {bulkList.map((x, i) => (
                 <div key={x.code} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 4px", borderBottom: i === bulkList.length - 1 ? "none" : "1px solid var(--brd)" }}>
                   <span className="bc" style={{ flex: 1 }}>{x.code}</span>
@@ -1022,35 +1032,50 @@ function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdm
             </div>
           )}
 
-          {/* Bu vardiya okutulanlar */}
+          {/* Manuel kayıt butonu (autoSave kapalıyken) */}
+          {!autoSave && (
+            <button className="btn btn-ok btn-full btn-lg" style={{ marginBottom: 10 }} onClick={doSave}>
+              <Ic d={I.save} s={20} /> Kaydet
+            </button>
+          )}
+
+          {/* Bu vardiyada okutulanlar — sayfa en altında gösterilir */}
           <div style={{ marginBottom: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 6 }}>
-              <div style={{ fontSize: 12, color: 'var(--tx2)', fontWeight: 800 }}>Bu Vardiya Okutulanlar</div>
-              <div className="row" style={{ gap: 8 }}>
-                <span className="chip">{currentShift}</span>
-                <span className="chip">{fmtDate(nowTs())}</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 6 }}>
+              <div style={{ fontSize: 12, color: "var(--tx2)", fontWeight: 800 }}>Bu Vardiya Okutulanlar</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <span className="tag">{currentShift}</span>
+                <span className="tag">{fmtDate(nowTs())}</span>
               </div>
             </div>
 
             {(() => {
-              const today = fmtDate(nowTs());
-              const all = (records || []).filter(r => r.shift === currentShift && r.date === today).slice().reverse();
+              const todayStr = fmtDate(nowTs());
+              const all = (records || [])
+                .filter(r => r.shift === currentShift && r.date === todayStr)
+                .slice()
+                .reverse();
               const lim = scanSettings.recentLimit;
               const view = (lim === 0 || lim === "0" || lim === "full") ? all : all.slice(0, Number(lim || 10));
               return (
-                <div style={{ maxHeight: 220, overflow: 'auto', border: '1.5px solid var(--brd)', borderRadius: 'var(--r)', padding: 8, background: 'var(--card)' }}>
+                <div style={{ maxHeight: 220, overflow: "auto", border: "1.5px solid var(--brd)", borderRadius: "var(--r)", padding: 8, background: "var(--s1)" }}>
                   {view.length === 0 ? (
-                    <div style={{ color: 'var(--tx3)', fontSize: 12 }}>Henüz kayıt yok</div>
+                    <div style={{ color: "var(--tx3)", fontSize: 12 }}>Henüz kayıt yok</div>
                   ) : (
                     view.map((r, i) => (
-                      <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 4px', borderBottom: i === view.length - 1 ? 'none' : '1px solid var(--brd)' }}>
+                      <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 4px", borderBottom: i === view.length - 1 ? "none" : "1px solid var(--brd)" }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div className="bc" style={{ fontWeight: 900 }}>{r.barcode}</div>
-                          <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 2 }}>
-                            {(r.user || '—')} · {(r.customer || '—')} &nbsp; {r.time || ''}
+                          <div style={{ fontSize: 11, color: "var(--tx3)", marginTop: 2 }}>
+                            {/* scanned_by = yeni alan adı; r.user = eski kayıtlara fallback */}
+                            {(r.scanned_by || r.user || "—")} · {(r.customer || "—")} &nbsp; {r.time || ""}
                           </div>
                         </div>
-                        <button className="btn btn-sm" style={{ height: 28 }} onClick={() => onEdit(r)}><Ic d={I.edit} s={14} /> Düzenle</button>
+                        {/* Düzenle → modal açar, direkt kayıt güncellemez */}
+                        <button className="btn btn-info btn-sm" style={{ height: 30 }}
+                          onClick={() => { setIsDupAlert(false); setEditDupRec(r); }}>
+                          <Ic d={I.edit} s={13} /> Düzenle
+                        </button>
                       </div>
                     ))
                   )}
@@ -1058,30 +1083,6 @@ function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdm
               );
             })()}
           </div>
-
-          {/* Extra fields (visible only if no addDetailAfterScan) */}
-          {!addDetailAfterScan && extraFields.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 10 }}>
-              {extraFields.map(f => (
-                <div key={f.id}>
-                  <label className="lbl">{f.label}{f.required ? " *" : ""}</label>
-                  {f.type === "Onay Kutusu"
-                    ? <label className="chk-row" style={{ height: 48, border: "1.5px solid var(--brd)", borderRadius: "var(--r)", padding: "0 14px", background: "var(--s2)" }}>
-                        <input type="checkbox" checked={!!extras[f.id]} onChange={e => setExtras(p => ({ ...p, [f.id]: e.target.checked }))} /><span>{f.label}</span>
-                      </label>
-                    : f.type === "Tarih" ? <input type="date" value={extras[f.id] || ""} onChange={e => setExtras(p => ({ ...p, [f.id]: e.target.value }))} />
-                    : f.type === "Sayı"  ? <input type="number" inputMode="numeric" placeholder="0" value={extras[f.id] || ""} onChange={e => setExtras(p => ({ ...p, [f.id]: e.target.value }))} />
-                    : <input type="text" placeholder={f.label + "..."} value={extras[f.id] || ""} onChange={e => setExtras(p => ({ ...p, [f.id]: e.target.value }))} />}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {!autoSave && (
-            <button className="btn btn-ok btn-full btn-lg" style={{ marginBottom: 10 }} onClick={doSave}>
-              <Ic d={I.save} s={20} /> Kaydet
-            </button>
-          )}
         </>
       )}
 
@@ -1093,7 +1094,14 @@ function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdm
         {integration.active && <span style={{ marginLeft: "auto", opacity: .7, fontSize: 11 }}>→ {integration.type === "supabase" ? "Supabase" : "Sheets"}</span>}
       </div>
 
-      {editDupRec && <EditRecordModal record={editDupRec} fields={fields} customers={customerList} onSave={(r)=>{ onEdit(r); setEditDupRec(null); }} onClose={()=>setEditDupRec(null)} />}
+      {editDupRec && <EditRecordModal
+        record={editDupRec}
+        fields={fields}
+        customers={customerList}
+        isDuplicate={isDupAlert}
+        onSave={r => { onEdit(r); setEditDupRec(null); setIsDupAlert(false); }}
+        onClose={() => { setEditDupRec(null); setIsDupAlert(false); scheduleFocus(); }}
+      />}
 
       {custModal && <CustomerModal customers={customerList} selected={customer}
         onSelect={v => { setCustomer(v); scheduleFocus(); }} onClose={() => { setCustModal(false); scheduleFocus(); }}
@@ -1110,6 +1118,9 @@ function DataPage({ fields, records, onDelete, onEdit, onExport, customers, sett
   const [grouped, setGrouped] = useState(true);
   const [editRec, setEditRec] = useState(null);
   const [sel, setSel] = useState(() => new Set());
+
+  // customers prop bir nesne {list, add, remove} veya dizi gelebilir
+  const customerList = Array.isArray(customers) ? customers : (customers?.list || []);
   const toggleSel = (id) => setSel(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const clearSel = () => setSel(new Set());
 
