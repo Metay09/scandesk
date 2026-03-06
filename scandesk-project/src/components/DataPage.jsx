@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 import { Ic, I } from "./Icon";
 import EditRecordModal from "./EditRecordModal";
 import { genId } from "../constants";
+import { toggleSetMember, getCustomerList } from "../utils";
 
 export default function DataPage({ fields, records, onDelete, onEdit, onExport, onImport, customers, settings, toast, isAdmin }) {
   const [q, setQ]           = useState("");
@@ -14,11 +15,10 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
   const [userFilter, setUserFilter]   = useState("all");
   const [showShiftCol, setShowShiftCol] = useState(false); // Vardiya kolonu varsayılan gizli
   const importRef = useRef(null);
-  const toggleSel = (id) => setSel(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleSel = (id) => setSel(p => toggleSetMember(p, id));
   const clearSel = () => setSel(new Set());
 
-  // BUG FIX: derive customerList safely from customers prop
-  const customerList = Array.isArray(customers) ? customers : (customers?.list || []);
+  const customerList = getCustomerList(customers);
 
   const handleImportFile = (e) => {
     const file = e.target.files?.[0];
