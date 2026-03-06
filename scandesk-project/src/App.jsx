@@ -201,16 +201,13 @@ export default function App() {
           </button>
         ))}
         <div className="side-footer">
-          <div className="user-pill" style={{ borderRadius: "var(--r)", marginBottom: 10, gap: 8 }}>
+          <div className="user-pill" style={{ borderRadius: "var(--r)", gap: 8 }}>
             <div className="avatar" style={{ width: 30, height: 30 }}>{user.name[0]}</div>
             <div>
               <div style={{ fontSize: 12, fontWeight: 700 }}>{user.name}</div>
               <div style={{ fontSize: 10, color: "var(--tx2)" }}>@{user.username} · {isAdmin ? "Admin" : "Kullanıcı"}</div>
             </div>
           </div>
-          <button className="btn btn-ghost btn-full btn-sm" onClick={toggleTheme}>
-            <Ic d={theme === "dark" ? I.sun : I.moon} s={13} /> {theme === "dark" ? "Açık Tema" : "Koyu Tema"}
-          </button>
         </div>
       </div>
 
@@ -221,7 +218,7 @@ export default function App() {
         {page === "report"   && <ReportPage   records={records} fields={fields} />}
         {page === "fields"   && <FieldsPage   fields={fields} setFields={setFields} isAdmin={isAdmin} settings={settings} />}
         {page === "users"    && isAdmin && <UsersPage users={users} setUsers={setUsers} currentUser={user} toast={toast} />}
-        {page === "settings" && <SettingsPage settings={settings} setSettings={setSettings} integration={integration} setIntegration={setIntegration} isAdmin={isAdmin} onClearData={handleClear} onDeleteRange={handleDeleteRange} records={records} toast={toast} user={user} onLogout={() => { setUser(null); setPage("scan"); }} />}
+        {page === "settings" && <SettingsPage settings={settings} setSettings={setSettings} integration={integration} setIntegration={setIntegration} isAdmin={isAdmin} onClearData={handleClear} onDeleteRange={handleDeleteRange} records={records} toast={toast} user={user} onLogout={() => { setUser(null); setPage("scan"); }} theme={theme} onToggleTheme={toggleTheme} />}
       </div>
 
       {/* BOTTOM NAV (mobile) */}

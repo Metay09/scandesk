@@ -3,7 +3,7 @@ import { Ic, I } from "./Icon";
 import Toggle from "./Toggle";
 import PasswordInput from "./PasswordInput";
 
-export default function SettingsPage({ settings, setSettings, integration, setIntegration, isAdmin, onClearData, onDeleteRange, records, toast, user, onLogout }) {
+export default function SettingsPage({ settings, setSettings, integration, setIntegration, isAdmin, onClearData, onDeleteRange, records, toast, user, onLogout, theme, onToggleTheme }) {
   const set = (k, v) => setSettings(p => ({ ...p, [k]: v }));
   const [sbOpen, setSbOpen] = useState(false);
   const [gsOpen, setGsOpen] = useState(false);
@@ -219,6 +219,9 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
             </div>
           </div>
         )}
+        <Row icon={theme === "dark" ? I.sun : I.moon} label={theme === "dark" ? "Açık Temaya Geç" : "Koyu Temaya Geç"} sub="Uygulama görünümünü değiştir" onClick={onToggleTheme}>
+          <Ic d={I.chevR} s={14} />
+        </Row>
         <Row icon={I.logout} label="Çıkış Yap" sub="Oturumu kapat" onClick={onLogout}>
           <Ic d={I.chevR} s={14} />
         </Row>

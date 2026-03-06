@@ -515,7 +515,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
                         {(r.scanned_by || '—')} · {(r.customer || '—')} &nbsp; {r.time || ''}
                       </div>
                     </div>
-                    <button className="btn btn-sm" style={{ height: 28 }} onClick={() => setEditDupRec(r)}><Ic d={I.edit} s={14} /> Düzenle</button>
+                    <button className="btn btn-info btn-sm" style={{ height: 32, padding: "0 8px" }} onClick={() => setEditDupRec(r)}><Ic d={I.edit} s={12} /></button>
                   </div>
                 ))
               )}
