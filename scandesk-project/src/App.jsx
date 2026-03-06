@@ -157,7 +157,11 @@ export default function App() {
     { id: "settings", label: "Ayarlar",   icon: I.settings },
   ].filter(n => !n.adminOnly || isAdmin);
 
-  if (!user) return <Login users={users} onLogin={u => { setUser(u); setPage("scan"); }} />;
+  const handleMigratePassword = (userId, hashed) => {
+    setUsers(p => p.map(u => u.id === userId ? { ...u, password: hashed } : u));
+  };
+
+  if (!user) return <Login users={users} onLogin={u => { setUser(u); setPage("scan"); }} onMigratePassword={handleMigratePassword} />;
 
   return (
     <div className="shell">

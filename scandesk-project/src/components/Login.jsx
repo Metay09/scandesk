@@ -1,13 +1,21 @@
 import { useState } from "react";
 import { Ic, I } from "./Icon";
 import PasswordInput from "./PasswordInput";
+import { hashPassword, verifyPassword } from "../utils";
 
-export default function Login({ users, onLogin }) {
+export default function Login({ users, onLogin, onMigratePassword }) {
   const [u, setU] = useState(""); const [p, setP] = useState(""); const [err, setErr] = useState("");
-  const go = () => {
-    const f = users.find(x => x.username === u && x.password === p && x.active !== false);
-    if (f) onLogin(f);
-    else setErr("Kullanıcı adı veya şifre hatalı.");
+  const go = async () => {
+    const found = users.find(x => x.username === u && x.active !== false);
+    if (!found) { setErr("Kullanıcı adı veya şifre hatalı."); return; }
+    const ok = await verifyPassword(p, found.password);
+    if (!ok) { setErr("Kullanıcı adı veya şifre hatalı."); return; }
+    // migrate plaintext → hash if needed
+    if (found.password.length < 64) {
+      const hashed = await hashPassword(p);
+      onMigratePassword?.(found.id, hashed);
+    }
+    onLogin(found);
   };
   return (
     <div className="login-wrap">

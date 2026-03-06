@@ -33,7 +33,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const [editDupRec, setEditDupRec] = useState(null);
   const recentRef = useRef(new Map());
 
-  const { autoSave, addDetailAfterScan, vibration, beep, frontCamera, recentLimit = 10 } = scanSettings;
+  const { autoSave, addDetailAfterScan, vibration, beep, cameraResolution, recentLimit = 10 } = scanSettings;
 
   useEffect(() => {
     if (customerList.length && !customer) setCustomer(customerList[0]);
@@ -64,9 +64,11 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   /* ── Camera ── */
   const startCamera = async () => {
     if (!navigator.mediaDevices?.getUserMedia) { toast("Bu tarayıcı kamera erişimini desteklemiyor.", "var(--err)"); return; }
+    const resMap = { low: 640, normal: 1280, high: 1920 };
+    const idealWidth = resMap[cameraResolution] ?? 1280;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: frontCamera ? "user" : "environment" }
+        video: { facingMode: "environment", width: { ideal: idealWidth } }
       });
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;

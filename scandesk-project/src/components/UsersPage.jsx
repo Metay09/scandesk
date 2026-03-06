@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Ic, I } from "./Icon";
 import { genId } from "../constants";
 import PasswordInput from "./PasswordInput";
+import { hashPassword, verifyPassword } from "../utils";
 
 export default function UsersPage({ users, setUsers, currentUser, toast }) {
   const [modal, setModal] = useState(null);
@@ -14,13 +15,14 @@ export default function UsersPage({ users, setUsers, currentUser, toast }) {
   const openEdit = u => { setErr(""); setForm({ ...u }); setModal({ mode: "edit", user: u }); };
   const openPw   = u => { setErr(""); setPwForm({ current: "", next: "", confirm: "" }); setModal({ mode: "pw", user: u }); };
 
-  const saveUser = () => {
+  const saveUser = async () => {
     if (!form.name.trim() || !form.username.trim()) { setErr("Ad ve kullanıcı adı zorunludur."); return; }
     if (modal.mode === "add" && !form.password.trim()) { setErr("Şifre zorunludur."); return; }
     if (modal.mode === "add" && form.password.length < 4) { setErr("Şifre en az 4 karakter olmalıdır."); return; }
     if (modal.mode === "add" && users.find(u => u.username === form.username.trim())) { setErr("Bu kullanıcı adı zaten kullanılıyor."); return; }
     if (modal.mode === "add") {
-      setUsers(p => [...p, { ...form, id: genId(), username: form.username.trim() }]);
+      const hashed = await hashPassword(form.password);
+      setUsers(p => [...p, { ...form, id: genId(), username: form.username.trim(), password: hashed }]);
       toast("Kullanıcı oluşturuldu");
     } else {
       setUsers(p => p.map(u => u.id === modal.user.id ? { ...u, name: form.name, username: form.username.trim(), role: form.role, active: form.active } : u));
@@ -29,13 +31,17 @@ export default function UsersPage({ users, setUsers, currentUser, toast }) {
     setModal(null);
   };
 
-  const changePw = () => {
+  const changePw = async () => {
     setErr("");
     const isOwn = modal.user.id === currentUser.id;
-    if (isOwn && modal.user.password !== pwForm.current) { setErr("Mevcut şifre hatalı."); return; }
+    if (isOwn) {
+      const ok = await verifyPassword(pwForm.current, modal.user.password);
+      if (!ok) { setErr("Mevcut şifre hatalı."); return; }
+    }
     if (pwForm.next.length < 4) { setErr("Yeni şifre en az 4 karakter olmalıdır."); return; }
     if (pwForm.next !== pwForm.confirm) { setErr("Şifreler eşleşmiyor."); return; }
-    setUsers(p => p.map(u => u.id === modal.user.id ? { ...u, password: pwForm.next } : u));
+    const hashed = await hashPassword(pwForm.next);
+    setUsers(p => p.map(u => u.id === modal.user.id ? { ...u, password: hashed } : u));
     toast("Şifre değiştirildi", "var(--ok)");
     setModal(null);
   };
