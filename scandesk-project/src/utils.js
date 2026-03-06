@@ -13,24 +13,23 @@ export const fmtTime = (ts) => {
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 };
 
-// Returns a stable, deterministic ID for a shift: "YYYY-MM-DD_N"
-// N is the 1-indexed position of shiftLabel inside shiftList (0 if not found)
-export const makeShiftId = (date, shiftLabel, shiftList) => {
-  const list = Array.isArray(shiftList) && shiftList.length
-    ? shiftList
-    : ["00:00/08:00", "08:00/16:00", "16:00/24:00"];
-  const idx = list.indexOf(shiftLabel);
-  const no  = idx >= 0 ? idx + 1 : 0;
-  return `${date}_${no}`;
+// Sabit vardiyalar — değiştirilemez
+// 12-8 : 00:00-07:59, 8-4 : 08:00-15:59, 4-12 : 16:00-23:59
+export const FIXED_SHIFTS = [
+  { label: "12-8", start: 0,  end: 8  },
+  { label: "8-4",  start: 8,  end: 16 },
+  { label: "4-12", start: 16, end: 24 },
+];
+
+// Saate göre vardiya etiketini döner (0-23)
+export const getShiftByHour = (h) => {
+  if (h < 8)  return "12-8";
+  if (h < 16) return "8-4";
+  return "4-12";
 };
 
-export const getDefaultShift = (shiftList) => {
-  const list = Array.isArray(shiftList) && shiftList.length ? shiftList : ["00:00/08:00","08:00/16:00","16:00/24:00"];
-  const h = new Date().getHours();
-  if (h < 8) return list[0];
-  if (h < 16) return list[1] ?? list[0];
-  return list[2] ?? list[list.length-1];
-};
+// Şu anki saate göre aktif vardiyayı döner
+export const getCurrentShift = () => getShiftByHour(new Date().getHours());
 
 export async function hashPassword(plain, saltHex) {
   const salt = saltHex

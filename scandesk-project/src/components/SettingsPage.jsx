@@ -11,15 +11,6 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
   const [gs, setGs] = useState({ ...integration.gsheets });
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
-  const [newShift, setNewShift] = useState("");
-  const addShift = () => {
-    const v = newShift.trim();
-    if (!v) return;
-    if (!/^\d{2}:\d{2}\/\d{2}:\d{2}$/.test(v)) { toast("Format: 08:00/16:00", "var(--err)"); return; }
-    if ((settings.shiftList || []).includes(v)) { toast("Bu vardiya zaten mevcut.", "var(--acc)"); return; }
-    set("shiftList", [...(settings.shiftList || []), v]);
-    setNewShift("");
-  };
 
   const Row = ({ icon, label, sub, children, onClick }) => (
     <div className={`s-row ${onClick ? "clickable" : ""}`} onClick={onClick}>
@@ -84,33 +75,6 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
           <Row icon={I.plus}  label="Alan Eklemeye İzin Ver"><Toggle value={settings.allowAddField}    onChange={v => set("allowAddField", v)} /></Row>
           <Row icon={I.edit}  label="Alan Düzenlemeye İzin Ver"><Toggle value={settings.allowEditField}   onChange={v => set("allowEditField", v)} /></Row>
           <Row icon={I.del}   label="Alan Silmeye İzin Ver"><Toggle value={settings.allowDeleteField}  onChange={v => set("allowDeleteField", v)} /></Row>
-        </div>
-        <div className="section-hd">Vardiyalar</div>
-        <div className="s-card">
-          <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 10 }}>
-            <div style={{ fontSize: 12, color: "var(--tx2)" }}>Vardiya listesini düzenleyin. Format: 08:00/16:00</div>
-            {(settings.shiftList || []).map((s, i) => (
-              <div key={i} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <span style={{ flex: 1, fontFamily: "var(--mono)", fontSize: 13, fontWeight: 700 }}>{s}</span>
-                <button className="btn btn-danger btn-sm" style={{ height: 32, padding: "0 10px" }}
-                  onClick={() => {
-                    const next = (settings.shiftList || []).filter((_, j) => j !== i);
-                    if (next.length === 0) { toast("En az bir vardiya olmalıdır.", "var(--err)"); return; }
-                    set("shiftList", next);
-                  }}><Ic d={I.del} s={13} /></button>
-              </div>
-            ))}
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                value={newShift}
-                onChange={e => setNewShift(e.target.value)}
-                placeholder="08:00/16:00"
-                style={{ flex: 1 }}
-                onKeyDown={e => e.key === "Enter" && addShift()}
-              />
-              <button className="btn btn-primary btn-sm" onClick={addShift}><Ic d={I.plus} s={15} /></button>
-            </div>
-          </div>
         </div>
         <div className="section-hd">Veri Temizleme (Aralık)</div>
         <div className="s-card">

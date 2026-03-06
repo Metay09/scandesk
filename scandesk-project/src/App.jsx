@@ -5,7 +5,6 @@ import * as XLSX from "xlsx";
 
 import "./index.css";
 import { INITIAL_USERS, INITIAL_SETTINGS, INITIAL_FIELDS, DEFAULT_CUSTS } from "./constants";
-import { getDefaultShift } from "./utils";
 import { isNative, loadState, saveState } from "./services/storage";
 import { useToast } from "./hooks/useToast";
 import { Ic, I } from "./components/Icon";
@@ -26,8 +25,6 @@ export default function App() {
   const [lastSaved, setLastSaved] = useState(null);
   const [custList, setCustList]   = useState(DEFAULT_CUSTS);
   const [settings, setSettings]   = useState(INITIAL_SETTINGS);
-  const [currentShift, setCurrentShift] = useState(() => getDefaultShift(INITIAL_SETTINGS.shiftList));
-  const [shiftConfirmed, setShiftConfirmed] = useState(false);
   const [integration, setIntegration] = useState({
     active: false, type: "supabase",
     supabase: { url: "", key: "", table: "taramalar" },
@@ -56,10 +53,8 @@ export default function App() {
         if (Array.isArray(st.custList) && st.custList.length) setCustList(st.custList);
         if (st.settings) {
           setSettings(st.settings);
-          setCurrentShift(getDefaultShift(st.settings.shiftList));
         }
         if (st.integration) setIntegration(st.integration);
-        if (st.currentShift) setCurrentShift(st.currentShift);
       }
       // ensure admin exists
       setUsers(p => {
@@ -73,8 +68,8 @@ export default function App() {
   // Persist on changes
   useEffect(() => {
     if (!hydrated) return;
-    saveState({ users, fields, records, lastSaved, custList, settings, integration, currentShift });
-  }, [hydrated, users, fields, records, lastSaved, custList, settings, integration, currentShift]);
+    saveState({ users, fields, records, lastSaved, custList, settings, integration });
+  }, [hydrated, users, fields, records, lastSaved, custList, settings, integration]);
 
   const { toasts, add: toast } = useToast();
 
@@ -162,10 +157,8 @@ export default function App() {
     setUsers(p => p.map(u => u.id === userId ? { ...u, password: hashed } : u));
   };
 
-  if (!user) return <Login users={users} shiftList={settings.shiftList || INITIAL_SETTINGS.shiftList} onLogin={(u, shift) => {
+  if (!user) return <Login users={users} onLogin={(u) => {
     setUser(u);
-    if (shift) { setCurrentShift(shift); setShiftConfirmed(true); }
-    else { setShiftConfirmed(false); } // admin seçimini tarama ekranında yapar
     setPage("scan");
   }} onMigratePassword={handleMigratePassword} />;
 
@@ -219,12 +212,12 @@ export default function App() {
 
       {/* CONTENT */}
       <div className="scroll-area">
-        {page === "scan"     && <ScanPage fields={fields} onSave={handleSave} onEdit={handleEdit} records={records} lastSaved={lastSaved} customers={customers} isAdmin={isAdmin} user={user} integration={integration} scanSettings={settings} toast={toast} currentShift={currentShift} setCurrentShift={setCurrentShift} shiftList={settings.shiftList || INITIAL_SETTINGS.shiftList} shiftConfirmed={shiftConfirmed} onShiftConfirm={s => { setCurrentShift(s); setShiftConfirmed(true); }} />}
-        {page === "data"     && <DataPage     fields={fields} records={records} onDelete={handleDelete} onEdit={handleEdit} onExport={handleExport} onImport={handleImport} customers={customers} settings={settings} toast={toast} isAdmin={isAdmin} currentShift={currentShift} />}
+        {page === "scan"     && <ScanPage fields={fields} onSave={handleSave} onEdit={handleEdit} records={records} lastSaved={lastSaved} customers={customers} isAdmin={isAdmin} user={user} integration={integration} scanSettings={settings} toast={toast} />}
+        {page === "data"     && <DataPage     fields={fields} records={records} onDelete={handleDelete} onEdit={handleEdit} onExport={handleExport} onImport={handleImport} customers={customers} settings={settings} toast={toast} isAdmin={isAdmin} />}
         {page === "report"   && <ReportPage   records={records} fields={fields} />}
         {page === "fields"   && <FieldsPage   fields={fields} setFields={setFields} isAdmin={isAdmin} settings={settings} />}
         {page === "users"    && isAdmin && <UsersPage users={users} setUsers={setUsers} currentUser={user} toast={toast} />}
-        {page === "settings" && <SettingsPage settings={settings} setSettings={setSettings} integration={integration} setIntegration={setIntegration} isAdmin={isAdmin} onClearData={handleClear} onDeleteRange={handleDeleteRange} records={records} toast={toast} user={user} onLogout={() => { setUser(null); setShiftConfirmed(false); setPage("scan"); }} theme={theme} onToggleTheme={toggleTheme} />}
+        {page === "settings" && <SettingsPage settings={settings} setSettings={setSettings} integration={integration} setIntegration={setIntegration} isAdmin={isAdmin} onClearData={handleClear} onDeleteRange={handleDeleteRange} records={records} toast={toast} user={user} onLogout={() => { setUser(null); setPage("scan"); }} theme={theme} onToggleTheme={toggleTheme} />}
       </div>
 
       {/* BOTTOM NAV (mobile) */}

@@ -4,7 +4,7 @@ import { Ic, I } from "./Icon";
 import EditRecordModal from "./EditRecordModal";
 import { genId } from "../constants";
 
-export default function DataPage({ fields, records, onDelete, onEdit, onExport, onImport, customers, settings, toast, isAdmin, currentShift }) {
+export default function DataPage({ fields, records, onDelete, onEdit, onExport, onImport, customers, settings, toast, isAdmin }) {
   const [q, setQ]           = useState("");
   const [grouped, setGrouped] = useState(true);
   const [editRec, setEditRec] = useState(null);
@@ -12,6 +12,7 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
   const [shiftFilter, setShiftFilter] = useState("all");
   const [dateFilter, setDateFilter]   = useState("");   // "YYYY-MM-DD" ya da ""
   const [userFilter, setUserFilter]   = useState("all");
+  const [showShiftCol, setShowShiftCol] = useState(false); // Vardiya kolonu varsayılan gizli
   const importRef = useRef(null);
   const toggleSel = (id) => setSel(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const clearSel = () => setSel(new Set());
@@ -75,8 +76,8 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
   };
 
   const allF = [{ id: "barcode", label: "Barkod", type: "Metin" }, ...fields.filter(f => f.id !== "barcode")];
-  // Non-admin users only see records from their own active shift
-  const visibleRecords = isAdmin ? records : records.filter(r => r.shift === currentShift);
+  // Tüm kullanıcılar tüm kayıtları görebilir; admin vardiyaya göre filtreleyebilir
+  const visibleRecords = records;
   const allShifts = [...new Set(visibleRecords.map(r => r.shift).filter(Boolean))].sort();
   const allUsers  = [...new Set(visibleRecords.map(r => r.scanned_by_username).filter(Boolean))].sort();
   const filtered = visibleRecords.filter(r => {
@@ -103,7 +104,7 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
         </td>
       ))}
       {showCust && <td style={{ color: "var(--inf)", fontWeight: 600, fontSize: 12 }}>{r.customer || "—"}</td>}
-      <td style={{ fontSize: 11, color: "var(--tx2)", whiteSpace: "nowrap" }}>{r.shift || "—"}</td>
+      {showShiftCol && <td style={{ fontSize: 11, color: "var(--tx2)", whiteSpace: "nowrap" }}>{r.shift || "—"}</td>}
       <td><span className="sig-cell">{r.scanned_by}</span></td>
       <td style={{ fontSize: 10, color: "var(--tx2)", fontFamily: "var(--mono)", whiteSpace: "nowrap" }}>
         {new Date(r.timestamp).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}
@@ -121,7 +122,7 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
     <thead><tr>
       <th>#</th>
       <th style={{ width: 34 }}><input type="checkbox" checked={sel.size>0 && filtered.length>0 && filtered.every(r=>sel.has(r.id))} onChange={e => { if (e.target.checked) setSel(new Set(filtered.map(r=>r.id))); else clearSel(); }} /></th>{allF.map(f => <th key={f.id}>{f.label}</th>)}
-      {showCust && <th>Müşteri</th>}<th>Vardiya</th><th>Kaydeden</th><th>Saat</th><th></th>
+      {showCust && <th>Müşteri</th>}{showShiftCol && <th>Vardiya</th>}<th>Kaydeden</th><th>Saat</th><th></th>
     </tr></thead>
   );
 
@@ -200,6 +201,16 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
             onClick={() => { if (isAdmin) setShiftFilter("all"); setDateFilter(""); setUserFilter("all"); }}
           >
             ✕
+          </button>
+        )}
+        {isAdmin && (
+          <button
+            className={`btn btn-sm ${showShiftCol ? "btn-info" : "btn-ghost"}`}
+            style={{ height: 40, flexShrink: 0, fontSize: 11 }}
+            title={showShiftCol ? "Vardiya kolonunu gizle" : "Vardiya kolonunu göster"}
+            onClick={() => setShowShiftCol(p => !p)}
+          >
+            <Ic d={I.fields} s={14} /> Vardiya
           </button>
         )}
         <button className={`btn btn-sm ${grouped ? "btn-info" : "btn-ghost"}`} onClick={() => setGrouped(p => !p)} style={{ height: 40 }}>

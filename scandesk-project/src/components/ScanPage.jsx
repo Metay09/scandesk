@@ -2,13 +2,13 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import { Ic, I } from "./Icon";
 import { genId } from "../constants";
-import { fmtDate, fmtTime, nowTs, playBeep, makeShiftId } from "../utils";
+import { fmtDate, fmtTime, nowTs, playBeep, getCurrentShift, FIXED_SHIFTS } from "../utils";
 import { supabaseInsert, sheetsInsert } from "../services/integrations";
 import EditRecordModal from "./EditRecordModal";
 import CustomerModal from "./CustomerModal";
 import ShiftInheritModal from "./ShiftInheritModal";
 
-export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdmin, user, integration, scanSettings, toast, currentShift, setCurrentShift, shiftList, shiftConfirmed, onShiftConfirm }) {
+export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdmin, user, integration, scanSettings, toast }) {
   const customerList = Array.isArray(customers) ? customers : (customers?.list || []);
   const today = fmtDate();
   const inputRef  = useRef(null);
@@ -28,8 +28,6 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const [scanPulse, setScanPulse] = useState(false);
   const trackRef = useRef(null);
   const [pendingBc, setPendingBc] = useState(null);
-  // Geçici vardiya seçimi — admin tarama ekranına ilk girdiğinde kullanılır
-  const [tempShift, setTempShift] = useState(() => currentShift || (shiftList && shiftList[0]) || "");
 
   const [bulkMode, setBulkMode]   = useState(false);
   const [bulkList, setBulkList]   = useState([]);
@@ -38,6 +36,9 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const recentRef = useRef(new Map());
 
   const { autoSave, addDetailAfterScan, vibration, beep, recentLimit = 10 } = scanSettings;
+
+  // Aktif vardiya: kayıt saatine göre otomatik hesaplanır
+  const currentShift = getCurrentShift();
 
   useEffect(() => {
     if (customerList.length && !customer) setCustomer(customerList[0]);
@@ -210,11 +211,11 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     const now = new Date();
     const extraFields = fields.filter(f => f.id !== "barcode");
     const dateStr = fmtDate(now);
+    const shift = getCurrentShift(); // kayıt saatine göre otomatik vardiya
     const row = {
       id: genId(), timestamp: now.toISOString(), date: dateStr, time: fmtTime(now),
       barcode: bc, customer: customer || "",
-      shift: currentShift || "",
-      shiftId: makeShiftId(dateStr, currentShift, shiftList),
+      shift,
       inheritedFromShift: "",
       scanned_by: user.name, scanned_by_username: user.username, synced: false,
     };
@@ -237,7 +238,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
       if (integration.type === "supabase") supabaseInsert(integration.supabase, { ...row, id: undefined }).catch(e => toast("Supabase hatası: " + e.message, "var(--err)"));
       else sheetsInsert(integration.gsheets, headers, rowArr).catch(e => toast("Sheets hatası: " + e.message, "var(--err)"));
     }
-  }, [customer, extras, fields, user, onSave, scheduleFocus, vibration, beep, integration, toast, currentShift, records, shiftList]);
+  }, [customer, extras, fields, user, onSave, scheduleFocus, vibration, beep, integration, toast, records]);
 
   const doSave = useCallback(() => {
     if (pendingBc) doSaveCode(pendingBc, extras);
@@ -246,9 +247,10 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
   const copyFromShift = useCallback((sourceShift, selectedIds) => {
     const todayStr = fmtDate();
+    const targetShift = getCurrentShift(); // devralınan kayıtlar da şu anki saate göre vardiya alır
     const selectedSet = new Set(selectedIds);
     const currentBarcodes = new Set(
-      (records || []).filter(r => r.shift === currentShift && r.date === todayStr).map(r => r.barcode)
+      (records || []).filter(r => r.shift === targetShift && r.date === todayStr).map(r => r.barcode)
     );
     const toCopy = (records || []).filter(r =>
       r.shift === sourceShift &&
@@ -265,8 +267,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
         timestamp: now.toISOString(),
         date: copyDateStr,
         time: fmtTime(now),
-        shift: currentShift,
-        shiftId: makeShiftId(copyDateStr, currentShift, shiftList),
+        shift: targetShift,
         inheritedFromShift: sourceShift,
         synced: false,
       });
@@ -277,7 +278,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     } else {
       toast("Kopyalanacak kayıt bulunamadı", "var(--acc)");
     }
-  }, [records, currentShift, onSave, toast, shiftList]);
+  }, [records, onSave, toast]);
 
   const handleKey = e => {
     if (e.key !== "Enter") return;
@@ -293,45 +294,16 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   // BUG FIX: derive torchSupported from track capabilities
   const torchSupported = !!trackRef.current?.getCapabilities?.()?.torch;
 
-  /* ── Admin: zorunlu vardiya seçim ekranı ── */
-  if (isAdmin && !shiftConfirmed) {
-    const sl = Array.isArray(shiftList) && shiftList.length ? shiftList : ["00:00/08:00", "08:00/16:00", "16:00/24:00"];
-    return (
-      <div className="page" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
-        <div style={{ background: "var(--card)", border: "1.5px solid var(--brd)", borderRadius: "var(--r2)", padding: "28px 24px", width: "100%", maxWidth: 360 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-            <Ic d={I.fields} s={20} />
-            <span style={{ fontSize: 17, fontWeight: 800 }}>Vardiya Seç</span>
-          </div>
-          <p style={{ fontSize: 13, color: "var(--tx2)", marginBottom: 20 }}>
-            Taramaya başlamadan önce aktif vardiyayı seçin.
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
-            {sl.map(s => (
-              <button
-                key={s}
-                className={`btn btn-full ${tempShift === s ? "btn-primary" : "btn-ghost"}`}
-                style={{ justifyContent: "center", fontWeight: 700, fontSize: 15 }}
-                onClick={() => setTempShift(s)}
-              >
-                {tempShift === s && <Ic d={I.check} s={14} />} {s}
-              </button>
-            ))}
-          </div>
-          <button
-            className="btn btn-ok btn-full btn-lg"
-            disabled={!tempShift}
-            onClick={() => onShiftConfirm(tempShift)}
-          >
-            <Ic d={I.scan} s={18} /> Vardiyayı Başlat
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="page">
+      {/* Aktif Vardiya Bilgisi — bilgilendirme amaçlı */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, padding: "7px 12px", background: "var(--card)", border: "1.5px solid var(--brd)", borderRadius: "var(--r)", fontSize: 12 }}>
+        <Ic d={I.fields} s={14} />
+        <span style={{ color: "var(--tx2)", fontWeight: 600 }}>Aktif Vardiya:</span>
+        <span style={{ fontWeight: 800, color: "var(--acc)" }}>{currentShift}</span>
+        <span style={{ marginLeft: "auto", color: "var(--tx3)", fontFamily: "var(--mono)", fontSize: 11 }}>{fmtTime()}</span>
+      </div>
+
       {/* Müşteri */}
       <div className="cust-bar">
         <Ic d={I.group} s={15} />
@@ -523,17 +495,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
             >
               <Ic d={I.upload} s={13} /> Devral
             </button>
-            {isAdmin ? (
-              <select
-                value={currentShift}
-                onChange={e => setCurrentShift(e.target.value)}
-                style={{ height: 26, borderRadius: 10, padding: '0 8px', background: 'var(--s2)', color: 'var(--tx)', border: '1.5px solid var(--brd)', fontSize: 11, fontWeight: 700 }}
-              >
-                {shiftList.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            ) : (
-              <span className="chip" style={{ fontWeight: 700, fontSize: 11 }}>{currentShift}</span>
-            )}
+            <span className="chip" style={{ fontWeight: 700, fontSize: 11 }}>{currentShift}</span>
             <span className="chip">{fmtDate(nowTs())}</span>
           </div>
         </div>
@@ -574,7 +536,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
       {editDupRec && <EditRecordModal record={editDupRec} fields={fields} customers={customerList} onSave={(r)=>{ onEdit(r); setEditDupRec(null); }} onClose={()=>setEditDupRec(null)} />}
 
-      {inheritModal && <ShiftInheritModal shiftList={shiftList} currentShift={currentShift} records={records} onCopy={copyFromShift} onClose={() => setInheritModal(false)} />}
+      {inheritModal && <ShiftInheritModal currentShift={currentShift} records={records} onCopy={copyFromShift} onClose={() => setInheritModal(false)} />}
 
       {custModal && <CustomerModal customers={customerList} selected={customer}
         onSelect={v => { setCustomer(v); scheduleFocus(); }} onClose={() => { setCustModal(false); scheduleFocus(); }}

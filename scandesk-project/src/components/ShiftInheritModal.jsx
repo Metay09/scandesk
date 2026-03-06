@@ -1,16 +1,13 @@
 import { useState } from "react";
 import { Ic, I } from "./Icon";
-import { fmtDate } from "../utils";
+import { fmtDate, FIXED_SHIFTS } from "../utils";
 
-export default function ShiftInheritModal({ shiftList, currentShift, records, onCopy, onClose }) {
+export default function ShiftInheritModal({ currentShift, records, onCopy, onClose }) {
   const today = fmtDate();
 
-  const otherShifts = shiftList.filter(s => s !== currentShift);
-  const defaultSrc = (() => {
-    const idx = shiftList.indexOf(currentShift);
-    const prev = idx > 0 ? shiftList[idx - 1] : shiftList[shiftList.length - 1];
-    return (prev && prev !== currentShift) ? prev : (otherShifts[0] || currentShift);
-  })();
+  const allLabels = FIXED_SHIFTS.map(s => s.label);
+  const otherShifts = allLabels.filter(s => s !== currentShift);
+  const defaultSrc = otherShifts[0] || currentShift;
 
   const [sourceShift, setSourceShift] = useState(defaultSrc);
 
