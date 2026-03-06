@@ -67,12 +67,12 @@ label.lbl{display:block;font-size:11px;font-weight:700;color:var(--tx2);
 
 /* ── SHELL ── */
 .login-wrap{min-height:100dvh;display:flex;align-items:center;justify-content:center;
-  padding:16px;background:radial-gradient(ellipse at 30% 20%,rgba(245,158,11,.07),transparent 55%),var(--bg);}
+  padding:calc(16px + env(safe-area-inset-top)) 16px 16px 16px;background:radial-gradient(ellipse at 30% 20%,rgba(245,158,11,.07),transparent 55%),var(--bg);}
 .login-box{width:100%;max-width:380px;background:var(--s1);border:1.5px solid var(--brd);
   border-radius:var(--r2);padding:36px 28px;box-shadow:0 4px 32px rgba(0,0,0,.5);}
 
 .shell{display:flex;flex-direction:column;height:100dvh;overflow:hidden;}
-.topbar{display:flex;align-items:center;padding:0 14px;height:52px;
+.topbar{display:flex;align-items:center;padding:env(safe-area-inset-top) 14px 0 14px;height:calc(52px + env(safe-area-inset-top));
   background:var(--s1);border-bottom:1.5px solid var(--brd);flex-shrink:0;gap:8px;}
 .scroll-area{flex:1;overflow-y:auto;overflow-x:hidden;}
 .page{padding:14px;max-width:720px;margin:0 auto;padding-bottom:78px;}
@@ -264,7 +264,7 @@ label.lbl{display:block;font-size:11px;font-weight:700;color:var(--tx2);
   .scroll-area{padding-bottom:0;}
   .page{padding:22px;}
   .side-nav{display:flex!important;flex-direction:column;width:210px;
-    background:var(--s1);border-right:1.5px solid var(--brd);padding:18px 10px;flex-shrink:0;}
+    background:var(--s1);border-right:1.5px solid var(--brd);padding:calc(18px + env(safe-area-inset-top)) 10px 18px 10px;flex-shrink:0;}
   .side-logo{display:flex;align-items:center;gap:9px;padding:0 8px;margin-bottom:22px;font-size:16px;font-weight:800;}
   .side-item{display:flex;align-items:center;gap:9px;padding:12px 12px;border-radius:var(--r);
     cursor:pointer;color:var(--tx2);font-size:13px;font-weight:600;transition:.12s;
