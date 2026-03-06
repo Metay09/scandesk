@@ -589,35 +589,25 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
           <div>
             <div style={{ fontSize: 12, color: 'var(--tx2)', fontWeight: 800 }}>Son Okutmalar</div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button
-              className="btn btn-ghost btn-sm"
-              style={{ height: 32, fontSize: 12 }}
-              onClick={() => setInheritModal(true)}
-              title="Önceki vardiyadan kayıt kopyala"
-            >
-              <Ic d={I.upload} s={14} /> Devral
-            </button>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{
-                fontSize: 12,
-                fontWeight: 700,
-                color: "var(--inf)",
-                background: "var(--inf2)",
-                border: "1.5px solid var(--inf3)",
-                borderRadius: 8,
-                padding: "4px 10px"
-              }}>{currentShift}</span>
-              <span style={{
-                fontSize: 12,
-                fontWeight: 600,
-                color: "var(--tx)",
-                background: "var(--s2)",
-                border: "1.5px solid var(--brd)",
-                borderRadius: 8,
-                padding: "4px 10px"
-              }}>{fmtDate(nowTs())}</span>
-            </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: "var(--inf)",
+              background: "var(--inf2)",
+              border: "1.5px solid var(--inf3)",
+              borderRadius: 8,
+              padding: "4px 10px"
+            }}>{currentShift}</span>
+            <span style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: "var(--tx)",
+              background: "var(--s2)",
+              border: "1.5px solid var(--brd)",
+              borderRadius: 8,
+              padding: "4px 10px"
+            }}>{fmtDate(nowTs())}</span>
           </div>
         </div>
 
