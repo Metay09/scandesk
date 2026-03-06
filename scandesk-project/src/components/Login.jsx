@@ -3,7 +3,7 @@ import { Ic, I } from "./Icon";
 import PasswordInput from "./PasswordInput";
 import { hashPassword, verifyPassword } from "../utils";
 
-export default function Login({ users, onLogin, onMigratePassword }) {
+export default function Login({ users, onLogin, onMigratePassword, logoutReason }) {
   const [u, setU] = useState("");
   const [p, setP] = useState("");
   const [err, setErr] = useState("");
@@ -14,7 +14,7 @@ export default function Login({ users, onLogin, onMigratePassword }) {
     const ok = await verifyPassword(p, found.password);
     if (!ok) { setErr("Kullanıcı adı veya şifre hatalı."); return; }
     // migrate plaintext → hash if needed
-    if (found.password.length < 64) {
+    if (!found.password.startsWith("pbkdf2:")) {
       const hashed = await hashPassword(p);
       onMigratePassword?.(found.id, hashed);
     }
@@ -33,6 +33,11 @@ export default function Login({ users, onLogin, onMigratePassword }) {
       <div className="login-box">
         <Logo />
         <p style={{ fontSize: 13, color: "var(--tx2)", marginBottom: 28 }}>Barkod yönetim sistemine giriş yapın</p>
+        {logoutReason === "shift_expired" && (
+          <div className="err-msg" style={{ marginBottom: 16, background: "var(--err-bg, rgba(239,68,68,.12))", borderColor: "var(--err)" }}>
+            Vardiya süresi doldu. Lütfen tekrar giriş yapın.
+          </div>
+        )}
         {err && <div className="err-msg">{err}</div>}
         <div className="fg">
           <label className="lbl">Kullanıcı Adı</label>

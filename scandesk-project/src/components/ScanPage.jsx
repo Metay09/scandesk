@@ -7,8 +7,9 @@ import { supabaseInsert, sheetsInsert } from "../services/integrations";
 import EditRecordModal from "./EditRecordModal";
 import CustomerModal from "./CustomerModal";
 import ShiftInheritModal from "./ShiftInheritModal";
+import ShiftTakeoverPrompt from "./ShiftTakeoverPrompt";
 
-export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdmin, user, integration, scanSettings, toast, shiftExpired = false }) {
+export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdmin, user, integration, scanSettings, toast, shiftExpired = false, shiftTakeovers = {}, onShiftTakeover }) {
   const customerList = Array.isArray(customers) ? customers : (customers?.list || []);
   const today = fmtDate();
   const inputRef  = useRef(null);
@@ -34,6 +35,33 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const [editDupRec, setEditDupRec] = useState(null);
   const [inheritModal, setInheritModal] = useState(false);
   const recentRef = useRef(new Map());
+  const onBarcodeRef = useRef(null);
+
+  // Vardiya devralma: giriş anında kontrol
+  const [showTakeoverPrompt, setShowTakeoverPrompt] = useState(false);
+  const takeoverChecked = useRef(false);
+  useEffect(() => {
+    if (takeoverChecked.current || isAdmin) return;
+    takeoverChecked.current = true;
+    const loginShift = getCurrentShift();
+    const loginDate = fmtDate();
+    const key = `${loginDate}_${loginShift}`;
+    if (!(shiftTakeovers || {})[key]) {
+      setShowTakeoverPrompt(true);
+    }
+  }, [isAdmin, shiftTakeovers]);
+
+  const handleTakeoverAccept = () => {
+    const loginShift = getCurrentShift();
+    const loginDate = fmtDate();
+    onShiftTakeover?.(loginShift, loginDate);
+    setShowTakeoverPrompt(false);
+    setInheritModal(true);
+  };
+
+  const handleTakeoverCancel = () => {
+    setShowTakeoverPrompt(false);
+  };
 
   const { autoSave, addDetailAfterScan, vibration, beep, recentLimit = 10 } = scanSettings;
 
@@ -111,7 +139,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
         if (!videoRef.current) return;
         await reader.decodeFromVideoDevice(undefined, videoRef.current, (res, err) => {
           if (!active) return;
-          if (res) onBarcode(res.getText());
+          if (res) onBarcodeRef.current(res.getText());
         });
       } catch (e) {
         // ignore
@@ -196,11 +224,18 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     doSaveCode(bc, {});
     return true;
   };
+  // Keep ref always pointing at latest onBarcode so ZXing callback avoids stale closure
+  onBarcodeRef.current = onBarcode;
 
   /* ── Save ── */
   const doSaveCode = useCallback((code, extrasOverride) => {
     const bc = (code || "").trim();
     if (!bc) { scheduleFocus(); return; }
+    if (shiftExpired && !isAdmin) {
+      toast("Vardiya sona erdi — okutma devre dışı", "var(--err)");
+      scheduleFocus();
+      return;
+    }
     const ex = findExistingRec(bc);
     if (ex) {
       setEditDupRec(ex);
@@ -241,7 +276,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
       if (integration.type === "supabase") supabaseInsert(integration.supabase, { ...row, id: undefined }).catch(e => toast("Supabase hatası: " + e.message, "var(--err)"));
       else sheetsInsert(integration.gsheets, headers, rowArr).catch(e => toast("Sheets hatası: " + e.message, "var(--err)"));
     }
-  }, [customer, extras, fields, user, onSave, scheduleFocus, vibration, beep, integration, toast, records, isAdmin, adminShift]);
+  }, [customer, extras, fields, user, onSave, scheduleFocus, vibration, beep, integration, toast, records, isAdmin, adminShift, shiftExpired]);
 
   const doSave = useCallback(() => {
     if (pendingBc) doSaveCode(pendingBc, extras);
@@ -569,6 +604,14 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
       {editDupRec && <EditRecordModal record={editDupRec} fields={fields} customers={customerList} onSave={(r)=>{ onEdit(r); setEditDupRec(null); }} onClose={()=>setEditDupRec(null)} />}
 
       {inheritModal && <ShiftInheritModal currentShift={currentShift} records={records} onCopy={copyFromShift} onClose={() => setInheritModal(false)} />}
+
+      {showTakeoverPrompt && !isAdmin && (
+        <ShiftTakeoverPrompt
+          shift={currentShift}
+          onTakeover={handleTakeoverAccept}
+          onCancel={handleTakeoverCancel}
+        />
+      )}
 
       {custModal && <CustomerModal customers={customerList} selected={customer}
         onSelect={v => { setCustomer(v); scheduleFocus(); }} onClose={() => { setCustModal(false); scheduleFocus(); }}
