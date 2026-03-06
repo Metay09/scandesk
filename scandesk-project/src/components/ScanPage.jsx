@@ -24,7 +24,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const [extras, setExtras]       = useState({});
   const [flash, setFlash]         = useState("ready");
   const [custModal, setCustModal] = useState(false);
-  const [customer, setCustomer]   = useState(customerList[0] || "");
+  const [customer, setCustomer]   = useState(""); // Default to empty string
   const [camActive, setCamActive] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
   const [scanPulse, setScanPulse] = useState(false);
@@ -70,9 +70,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const [adminShift, setAdminShift] = useState(() => getCurrentShift());
   const currentShift = isAdmin ? adminShift : getCurrentShift();
 
-  useEffect(() => {
-    if (customerList.length && !customer) setCustomer(customerList[0]);
-  }, [customerList]);
+  // Removed automatic customer selection - default to empty
 
   useEffect(() => {
     if (typeof BarcodeDetector !== "undefined") {
@@ -373,13 +371,55 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
       {/* Müşteri */}
       <div className="cust-bar">
-        <Ic d={I.group} s={15} />
-        <span style={{ fontSize: 12, color: "var(--tx2)", fontWeight: 600, flexShrink: 0 }}>Müşteri:</span>
-        <button type="button" className="cust-btn" onClick={() => setCustModal(true)}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--inf)", flexShrink: 0 }} />
-          <span className="cust-name">{customer || "Seçilmedi"}</span>
-          <Ic d={I.chevD} s={13} />
-        </button>
+        <label className="lbl" style={{ marginBottom: 4, fontSize: 12 }}>Müşteri</label>
+        <div style={{ position: "relative" }}>
+          <input
+            type="text"
+            list="customer-suggestions"
+            value={customer}
+            onChange={e => setCustomer(e.target.value)}
+            placeholder="Müşteri adı girin veya seçin..."
+            style={{
+              width: "100%",
+              height: 40,
+              borderRadius: 10,
+              padding: "0 40px 0 12px",
+              background: "var(--s2)",
+              color: "var(--tx)",
+              border: "1.5px solid var(--brd)",
+              fontSize: 13,
+              fontWeight: 600
+            }}
+          />
+          <datalist id="customer-suggestions">
+            {customerList.map(c => <option key={c} value={c} />)}
+          </datalist>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setCustModal(true)}
+              style={{
+                position: "absolute",
+                right: 8,
+                top: "50%",
+                transform: "translateY(-50%)",
+                width: 28,
+                height: 28,
+                borderRadius: 6,
+                border: "none",
+                background: "var(--inf2)",
+                color: "var(--inf)",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center"
+              }}
+              title="Müşteri yönet"
+            >
+              <Ic d={I.settings} s={14} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Status */}
@@ -610,8 +650,8 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
         />
       )}
 
-      {custModal && <CustomerModal customers={customerList} selected={customer}
-        onSelect={v => { setCustomer(v); scheduleFocus(); }} onClose={() => { setCustModal(false); scheduleFocus(); }}
+      {custModal && <CustomerModal customers={customerList}
+        onClose={() => { setCustModal(false); scheduleFocus(); }}
         onAdd={customers.add} onRemove={customers.remove} isAdmin={isAdmin} />}
     </div>
   );

@@ -26,10 +26,17 @@ export default function EditRecordModal({ record, fields, customers, onSave, onC
       ))}
       <div>
         <label className="lbl">Müşteri</label>
-        <select value={form.customer || ""} onChange={e => set("customer", e.target.value)}>
-          <option value="">— Seçiniz —</option>
-          {customers.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
+        <input
+          type="text"
+          list="edit-customer-suggestions"
+          value={form.customer || ""}
+          onChange={e => set("customer", e.target.value)}
+          placeholder="Müşteri adı girin veya seçin..."
+        />
+        <datalist id="edit-customer-suggestions">
+          <option value="" />
+          {customers.map(c => <option key={c} value={c} />)}
+        </datalist>
       </div>
       <div style={{ padding: "9px 12px", background: "var(--pur2)", border: "1.5px solid var(--pur3)", borderRadius: "var(--r)", fontSize: 12, color: "var(--pur)", display: "flex", alignItems: "center", gap: 7 }}>
         <Ic d={I.sig} s={13} /> Kaydeden: <b>{form.scanned_by}</b>
