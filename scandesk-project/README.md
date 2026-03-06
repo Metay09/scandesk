@@ -39,6 +39,19 @@ npm run preview
 
 ## Android APK
 
+### APK İndirme
+
+Hazır APK dosyasını GitHub Actions üzerinden indirebilirsiniz:
+
+1. Depo sayfasında **Actions** sekmesine gidin
+2. En son başarılı **Build APK** çalışmasını seçin
+3. Sayfanın altındaki **Artifacts** bölümünden **ScanDesk-APK** dosyasını indirin
+4. İndirilen ZIP dosyasını açın ve `app-debug.apk` dosyasını Android cihazınıza yükleyin
+
+### Yerel APK Derleme
+
+Alternatif olarak kendi bilgisayarınızda APK derleyebilirsiniz:
+
 ```bash
 bash build.sh
 ```
