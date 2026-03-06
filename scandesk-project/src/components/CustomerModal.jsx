@@ -7,13 +7,11 @@ export default function CustomerModal({ customers, onClose, onAdd, onRemove, isA
   const add = () => { if (newName.trim()) { onAdd(newName.trim()); setNewName(""); } };
   return (
     <Modal title="Müşteri Yönet" icon={I.group} onClose={onClose}>
-      {isAdmin && (
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <input value={newName} onChange={e => setNewName(e.target.value)}
-            placeholder="Yeni müşteri adı..." onKeyDown={e => e.key === "Enter" && add()} />
-          <button className="btn btn-primary btn-sm" onClick={add}><Ic d={I.plus} s={15} /></button>
-        </div>
-      )}
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <input value={newName} onChange={e => setNewName(e.target.value)}
+          placeholder="Yeni müşteri adı..." onKeyDown={e => e.key === "Enter" && add()} />
+        <button className="btn btn-primary btn-sm" onClick={add}><Ic d={I.plus} s={15} /></button>
+      </div>
       {customers.length === 0 && <p style={{ color: "var(--tx3)", fontSize: 13, textAlign: "center" }}>Henüz müşteri eklenmedi</p>}
       {customers.map(c => (
         <div key={c}
@@ -22,12 +20,10 @@ export default function CustomerModal({ customers, onClose, onAdd, onRemove, isA
             border: "1.5px solid var(--brd)",
             borderRadius: "var(--r)", marginBottom: 8 }}>
           <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "var(--tx)" }}>{c}</span>
-          {isAdmin && (
-            <button className="btn btn-danger btn-sm" style={{ height: 30, padding: "0 8px" }}
-              onClick={() => onRemove(c)}>
-              <Ic d={I.del} s={13} />
-            </button>
-          )}
+          <button className="btn btn-danger btn-sm" style={{ height: 30, padding: "0 8px" }}
+            onClick={() => onRemove(c)}>
+            <Ic d={I.del} s={13} />
+          </button>
         </div>
       ))}
     </Modal>
