@@ -35,6 +35,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const [editDupRec, setEditDupRec] = useState(null);
   const [inheritModal, setInheritModal] = useState(false);
   const recentRef = useRef(new Map());
+  const onBarcodeRef = useRef(null);
 
   // Vardiya devralma: giriş anında kontrol
   const [showTakeoverPrompt, setShowTakeoverPrompt] = useState(false);
@@ -138,7 +139,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
         if (!videoRef.current) return;
         await reader.decodeFromVideoDevice(undefined, videoRef.current, (res, err) => {
           if (!active) return;
-          if (res) onBarcode(res.getText());
+          if (res) onBarcodeRef.current(res.getText());
         });
       } catch (e) {
         // ignore
@@ -223,11 +224,18 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     doSaveCode(bc, {});
     return true;
   };
+  // Keep ref always pointing at latest onBarcode so ZXing callback avoids stale closure
+  onBarcodeRef.current = onBarcode;
 
   /* ── Save ── */
   const doSaveCode = useCallback((code, extrasOverride) => {
     const bc = (code || "").trim();
     if (!bc) { scheduleFocus(); return; }
+    if (shiftExpired && !isAdmin) {
+      toast("Vardiya sona erdi — okutma devre dışı", "var(--err)");
+      scheduleFocus();
+      return;
+    }
     const ex = findExistingRec(bc);
     if (ex) {
       setEditDupRec(ex);
@@ -268,7 +276,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
       if (integration.type === "supabase") supabaseInsert(integration.supabase, { ...row, id: undefined }).catch(e => toast("Supabase hatası: " + e.message, "var(--err)"));
       else sheetsInsert(integration.gsheets, headers, rowArr).catch(e => toast("Sheets hatası: " + e.message, "var(--err)"));
     }
-  }, [customer, extras, fields, user, onSave, scheduleFocus, vibration, beep, integration, toast, records, isAdmin, adminShift]);
+  }, [customer, extras, fields, user, onSave, scheduleFocus, vibration, beep, integration, toast, records, isAdmin, adminShift, shiftExpired]);
 
   const doSave = useCallback(() => {
     if (pendingBc) doSaveCode(pendingBc, extras);

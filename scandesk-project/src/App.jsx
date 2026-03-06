@@ -166,6 +166,7 @@ export default function App() {
         await Filesystem.writeFile({ path: filename, data: b64, directory: Directory.Documents });
         await Share.share({ title: "ScanDesk Excel", text: "Excel dosyası hazır", url: (await Filesystem.getUri({ directory: Directory.Documents, path: filename })).uri });
         toast("Excel hazır (Paylaş)", "var(--ok)");
+        return;
       } else {
         XLSX.writeFile(wb, filename);
       }
@@ -176,6 +177,7 @@ export default function App() {
         await Filesystem.writeFile({ path: filename, data: "\uFEFF" + csv, directory: Directory.Documents, encoding: Encoding.UTF8 });
         await Share.share({ title: "ScanDesk CSV", text: "CSV dosyası hazır", url: (await Filesystem.getUri({ directory: Directory.Documents, path: filename })).uri });
         toast("CSV hazır (Paylaş)", "var(--ok)");
+        return;
       } else {
         const a = document.createElement("a");
         a.href = URL.createObjectURL(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }));
@@ -219,6 +221,13 @@ export default function App() {
       [key]: { user: user.name, userId: user.id, ts: new Date().toISOString() },
     }));
   }, [user]);
+
+  if (!hydrated) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", flexDirection: "column", gap: 12, color: "var(--tx2)" }}>
+      <div style={{ width: 36, height: 36, border: "3px solid var(--brd)", borderTopColor: "var(--acc)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+      <span style={{ fontSize: 13 }}>Yükleniyor...</span>
+    </div>
+  );
 
   if (!user) return <Login users={users} onLogin={handleLogin} onMigratePassword={handleMigratePassword} logoutReason={logoutReason} />;
 

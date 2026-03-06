@@ -14,7 +14,7 @@ export default function Login({ users, onLogin, onMigratePassword, logoutReason 
     const ok = await verifyPassword(p, found.password);
     if (!ok) { setErr("Kullanıcı adı veya şifre hatalı."); return; }
     // migrate plaintext → hash if needed
-    if (found.password.length < 64) {
+    if (!found.password.startsWith("pbkdf2:")) {
       const hashed = await hashPassword(p);
       onMigratePassword?.(found.id, hashed);
     }
