@@ -40,17 +40,6 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
         <Row icon={I.edit} label="Taramadan Sonra Detay Ekle" sub="Önce barkod taranır, sonra diğer alanlar doldurulur"><Toggle value={settings.addDetailAfterScan} onChange={v => set("addDetailAfterScan", v)} /></Row>
         <Row icon={I.vib} label="Titreşim"><Toggle value={settings.vibration} onChange={v => set("vibration", v)} /></Row>
         <Row icon={I.bell} label="Bip Sesi"><Toggle value={settings.beep} onChange={v => set("beep", v)} /></Row>
-        <Row icon={I.camera} label="Kamera Çözünürlüğü" sub="Düşük pil tüketimi için Düşük, netlik için Yüksek seçin">
-          <select
-            value={settings.cameraResolution || 'normal'}
-            onChange={e => set('cameraResolution', e.target.value)}
-            style={{ height: 34, borderRadius: 10, padding: '0 10px', background: 'var(--s2)', color: 'var(--tx)', border: '1.5px solid var(--brd)' }}
-          >
-            <option value="low">Düşük (640p)</option>
-            <option value="normal">Normal (1280p)</option>
-            <option value="high">Yüksek (1920p)</option>
-          </select>
-        </Row>
         <Row icon={I.data} label="Son Okutulanlar" sub="Tarama ekranında gösterilecek kayıt sayısı">
           <select
             value={String(settings.recentLimit ?? 10)}

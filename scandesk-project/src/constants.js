@@ -8,7 +8,6 @@ export const INITIAL_SETTINGS = {
   addDetailAfterScan: false,
   vibration: true,
   beep: true,
-  cameraResolution: "normal",
   allowExport: true,
   allowClearData: true,
   allowAddField: true,
