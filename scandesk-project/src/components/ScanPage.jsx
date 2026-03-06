@@ -7,8 +7,9 @@ import { supabaseInsert, sheetsInsert } from "../services/integrations";
 import EditRecordModal from "./EditRecordModal";
 import CustomerModal from "./CustomerModal";
 import ShiftInheritModal from "./ShiftInheritModal";
+import ShiftTakeoverPrompt from "./ShiftTakeoverPrompt";
 
-export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdmin, user, integration, scanSettings, toast, shiftExpired = false }) {
+export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdmin, user, integration, scanSettings, toast, shiftExpired = false, shiftTakeovers = {}, onShiftTakeover }) {
   const customerList = Array.isArray(customers) ? customers : (customers?.list || []);
   const today = fmtDate();
   const inputRef  = useRef(null);
@@ -34,6 +35,32 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const [editDupRec, setEditDupRec] = useState(null);
   const [inheritModal, setInheritModal] = useState(false);
   const recentRef = useRef(new Map());
+
+  // Vardiya devralma: giriş anında kontrol
+  const [showTakeoverPrompt, setShowTakeoverPrompt] = useState(false);
+  const takeoverChecked = useRef(false);
+  useEffect(() => {
+    if (takeoverChecked.current || isAdmin) return;
+    takeoverChecked.current = true;
+    const loginShift = getCurrentShift();
+    const loginDate = fmtDate();
+    const key = `${loginDate}_${loginShift}`;
+    if (!(shiftTakeovers || {})[key]) {
+      setShowTakeoverPrompt(true);
+    }
+  }, [isAdmin, shiftTakeovers]);
+
+  const handleTakeoverAccept = () => {
+    const loginShift = getCurrentShift();
+    const loginDate = fmtDate();
+    onShiftTakeover?.(loginShift, loginDate);
+    setShowTakeoverPrompt(false);
+    setInheritModal(true);
+  };
+
+  const handleTakeoverCancel = () => {
+    setShowTakeoverPrompt(false);
+  };
 
   const { autoSave, addDetailAfterScan, vibration, beep, recentLimit = 10 } = scanSettings;
 
@@ -569,6 +596,14 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
       {editDupRec && <EditRecordModal record={editDupRec} fields={fields} customers={customerList} onSave={(r)=>{ onEdit(r); setEditDupRec(null); }} onClose={()=>setEditDupRec(null)} />}
 
       {inheritModal && <ShiftInheritModal currentShift={currentShift} records={records} onCopy={copyFromShift} onClose={() => setInheritModal(false)} />}
+
+      {showTakeoverPrompt && !isAdmin && (
+        <ShiftTakeoverPrompt
+          shift={currentShift}
+          onTakeover={handleTakeoverAccept}
+          onCancel={handleTakeoverCancel}
+        />
+      )}
 
       {custModal && <CustomerModal customers={customerList} selected={customer}
         onSelect={v => { setCustomer(v); scheduleFocus(); }} onClose={() => { setCustModal(false); scheduleFocus(); }}

@@ -36,6 +36,8 @@ export default function App() {
   const [userLoginShift, setUserLoginShift] = useState(null);
   const [graceSecsLeft, setGraceSecsLeft] = useState(null);
   const inGraceRef = useRef(false);
+  const [shiftTakeovers, setShiftTakeovers] = useState({});
+  const [logoutReason, setLogoutReason] = useState(null);
 
   // Apply theme to document
   useEffect(() => {
@@ -59,6 +61,7 @@ export default function App() {
           setSettings(st.settings);
         }
         if (st.integration) setIntegration(st.integration);
+        if (st.shiftTakeovers && typeof st.shiftTakeovers === "object") setShiftTakeovers(st.shiftTakeovers);
       }
       // ensure admin exists
       setUsers(p => {
@@ -72,19 +75,20 @@ export default function App() {
   // Persist on changes
   useEffect(() => {
     if (!hydrated) return;
-    saveState({ users, fields, records, lastSaved, custList, settings, integration });
-  }, [hydrated, users, fields, records, lastSaved, custList, settings, integration]);
+    saveState({ users, fields, records, lastSaved, custList, settings, integration, shiftTakeovers });
+  }, [hydrated, users, fields, records, lastSaved, custList, settings, integration, shiftTakeovers]);
 
   const { toasts, add: toast } = useToast();
 
   const isAdmin = user?.role === "admin";
 
-  const handleLogout = useCallback(() => {
+  const handleLogout = useCallback((reason = null) => {
     inGraceRef.current = false;
     setUser(null);
     setPage("scan");
     setUserLoginShift(null);
     setGraceSecsLeft(null);
+    setLogoutReason(reason);
   }, []);
 
   const handleLogin = useCallback((u) => {
@@ -92,6 +96,7 @@ export default function App() {
     setUser(u);
     setPage("scan");
     setGraceSecsLeft(null);
+    setLogoutReason(null);
     if (u.role !== "admin") {
       setUserLoginShift(getCurrentShift());
     } else {
@@ -119,7 +124,7 @@ export default function App() {
   // 5 dakika geri sayım + otomatik çıkış
   useEffect(() => {
     if (graceSecsLeft === null || !user) return;
-    if (graceSecsLeft === 0) { handleLogout(); return; }
+    if (graceSecsLeft === 0) { handleLogout("shift_expired"); return; }
     const id = setTimeout(() => setGraceSecsLeft(s => (s !== null && s > 0) ? s - 1 : s), 1000);
     return () => clearTimeout(id);
   }, [graceSecsLeft, user, handleLogout]);
@@ -206,7 +211,16 @@ export default function App() {
     setUsers(p => p.map(u => u.id === userId ? { ...u, password: hashed } : u));
   };
 
-  if (!user) return <Login users={users} onLogin={handleLogin} onMigratePassword={handleMigratePassword} />;
+  const handleShiftTakeover = useCallback((shift, date) => {
+    if (!user) return;
+    const key = `${date}_${shift}`;
+    setShiftTakeovers(p => ({
+      ...p,
+      [key]: { user: user.name, userId: user.id, ts: new Date().toISOString() },
+    }));
+  }, [user]);
+
+  if (!user) return <Login users={users} onLogin={handleLogin} onMigratePassword={handleMigratePassword} logoutReason={logoutReason} />;
 
   return (
     <div className="shell">
@@ -258,7 +272,7 @@ export default function App() {
 
       {/* CONTENT */}
       <div className="scroll-area">
-        {page === "scan"     && <ScanPage fields={fields} onSave={handleSave} onEdit={handleEdit} records={records} lastSaved={lastSaved} customers={customers} isAdmin={isAdmin} user={user} integration={integration} scanSettings={settings} toast={toast} shiftExpired={graceSecsLeft !== null && !isAdmin} />}
+        {page === "scan"     && <ScanPage fields={fields} onSave={handleSave} onEdit={handleEdit} records={records} lastSaved={lastSaved} customers={customers} isAdmin={isAdmin} user={user} integration={integration} scanSettings={settings} toast={toast} shiftExpired={graceSecsLeft !== null && !isAdmin} shiftTakeovers={shiftTakeovers} onShiftTakeover={handleShiftTakeover} />}
         {page === "data"     && <DataPage     fields={fields} records={records} onDelete={handleDelete} onEdit={handleEdit} onExport={handleExport} onImport={handleImport} customers={customers} settings={settings} toast={toast} isAdmin={isAdmin} />}
         {page === "report"   && <ReportPage   records={records} fields={fields} />}
         {page === "fields"   && <FieldsPage   fields={fields} setFields={setFields} isAdmin={isAdmin} settings={settings} />}
@@ -287,7 +301,7 @@ export default function App() {
         }}>
           <Ic d={I.lock} s={16} />
           <span style={{ flex: 1 }}>
-            Vardiya sona erdi — çıkışa {Math.floor(graceSecsLeft / 60)}:{pad2(graceSecsLeft % 60)} kaldı
+            Vardiya süresi doldu — çıkışa {Math.floor(graceSecsLeft / 60)}:{pad2(graceSecsLeft % 60)} kaldı
           </span>
           <button
             className="btn btn-sm"
