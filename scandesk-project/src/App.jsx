@@ -208,11 +208,8 @@ export default function App() {
               <div style={{ fontSize: 10, color: "var(--tx2)" }}>@{user.username} · {isAdmin ? "Admin" : "Kullanıcı"}</div>
             </div>
           </div>
-          <button className="btn btn-ghost btn-full btn-sm" style={{ marginBottom: 8 }} onClick={toggleTheme}>
+          <button className="btn btn-ghost btn-full btn-sm" onClick={toggleTheme}>
             <Ic d={theme === "dark" ? I.sun : I.moon} s={13} /> {theme === "dark" ? "Açık Tema" : "Koyu Tema"}
-          </button>
-          <button className="btn btn-ghost btn-full btn-sm" onClick={() => { setUser(null); setPage("scan"); }}>
-            <Ic d={I.logout} s={13} /> Çıkış Yap
           </button>
         </div>
       </div>
@@ -224,7 +221,7 @@ export default function App() {
         {page === "report"   && <ReportPage   records={records} fields={fields} />}
         {page === "fields"   && <FieldsPage   fields={fields} setFields={setFields} isAdmin={isAdmin} settings={settings} />}
         {page === "users"    && isAdmin && <UsersPage users={users} setUsers={setUsers} currentUser={user} toast={toast} />}
-        {page === "settings" && <SettingsPage settings={settings} setSettings={setSettings} integration={integration} setIntegration={setIntegration} isAdmin={isAdmin} onClearData={handleClear} onDeleteRange={handleDeleteRange} records={records} toast={toast} />}
+        {page === "settings" && <SettingsPage settings={settings} setSettings={setSettings} integration={integration} setIntegration={setIntegration} isAdmin={isAdmin} onClearData={handleClear} onDeleteRange={handleDeleteRange} records={records} toast={toast} user={user} onLogout={() => { setUser(null); setPage("scan"); }} />}
       </div>
 
       {/* BOTTOM NAV (mobile) */}
@@ -235,9 +232,6 @@ export default function App() {
             {n.id === "data" && records.length > 0 && <span className="nav-badge">{records.length}</span>}
           </button>
         ))}
-        <button className="nav-btn" onClick={() => { setUser(null); setPage("scan"); }}>
-          <Ic d={I.logout} s={21} />Çıkış
-        </button>
       </nav>
 
       {/* TOASTS */}
