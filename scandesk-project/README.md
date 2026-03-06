@@ -39,6 +39,18 @@ npm run preview
 
 ## Android APK
 
+### Hazır APK İndir (Önerilen)
+
+En güncel APK dosyasını doğrudan GitHub Releases sayfasından indirebilirsiniz:
+
+👉 **[Releases sayfasına git →](../../releases/latest)**
+
+1. `app-debug.apk` dosyasını indirin
+2. Android cihazınızda **Bilinmeyen kaynaklardan yükleme** iznini etkinleştirin
+3. APK dosyasını açarak yükleyin
+
+### Kendiniz Derleyin
+
 ```bash
 bash build.sh
 ```

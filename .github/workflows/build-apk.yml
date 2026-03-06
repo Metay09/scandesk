@@ -1,0 +1,80 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: scandesk-project/package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install dependencies
+        working-directory: scandesk-project
+        run: npm ci
+
+      - name: Build web app
+        working-directory: scandesk-project
+        run: npm run build
+
+      - name: Sync Capacitor
+        working-directory: scandesk-project
+        run: npx cap sync android
+
+      - name: Make Gradle wrapper executable
+        working-directory: scandesk-project/android
+        run: chmod +x gradlew
+
+      - name: Build debug APK
+        working-directory: scandesk-project/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scandesk-debug-apk
+          path: scandesk-project/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0-build-${{ github.run_number }}
+          name: "ScanDesk APK - Build #${{ github.run_number }}"
+          body: |
+            ## ScanDesk Android APK
+
+            Bu sürüm otomatik olarak oluşturulmuştur.
+
+            ### Kurulum
+            1. `app-debug.apk` dosyasını indirin
+            2. Android cihazınızda **Bilinmeyen kaynaklardan yükleme** iznini etkinleştirin
+            3. APK dosyasını açarak yükleyin
+
+            Varsayılan giriş bilgileri için lütfen README dosyasına bakın.
+            **Güvenlik:** İlk girişin ardından şifrenizi değiştirmeniz önerilir.
+          files: scandesk-project/android/app/build/outputs/apk/debug/app-debug.apk
+          draft: false
+          prerelease: false
