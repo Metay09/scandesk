@@ -42,8 +42,8 @@ export async function hashPassword(plain, saltHex) {
     { name: "PBKDF2", hash: "SHA-256", salt, iterations: 100000 },
     keyMaterial, 256
   );
-  const hashHex  = Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, "0")).join("");
-  const saltHexOut = Array.from(salt).map(b => b.toString(16).padStart(2, "0")).join("");
+  const hashHex  = bytesToHex(new Uint8Array(bits));
+  const saltHexOut = bytesToHex(salt);
   return `pbkdf2:${saltHexOut}:${hashHex}`;
 }
 
@@ -70,4 +70,21 @@ export function playBeep() {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.11);
     osc.start(); osc.stop(ctx.currentTime + 0.11);
   } catch {}
+}
+
+// Toggle a value in a Set (add if not present, remove if present)
+export function toggleSetMember(set, value) {
+  const newSet = new Set(set);
+  newSet.has(value) ? newSet.delete(value) : newSet.add(value);
+  return newSet;
+}
+
+// Convert byte array to hex string
+export function bytesToHex(bytes) {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Safely extract customer list from customers prop
+export function getCustomerList(customers) {
+  return Array.isArray(customers) ? customers : (customers?.list || []);
 }

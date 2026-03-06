@@ -2,15 +2,16 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import { Ic, I } from "./Icon";
 import { genId } from "../constants";
-import { fmtDate, fmtTime, nowTs, playBeep, getCurrentShift, FIXED_SHIFTS } from "../utils";
+import { fmtDate, fmtTime, nowTs, playBeep, getCurrentShift, FIXED_SHIFTS, getCustomerList } from "../utils";
 import { supabaseInsert, sheetsInsert } from "../services/integrations";
 import EditRecordModal from "./EditRecordModal";
 import CustomerModal from "./CustomerModal";
 import ShiftInheritModal from "./ShiftInheritModal";
 import ShiftTakeoverPrompt from "./ShiftTakeoverPrompt";
+import FieldInput from "./FieldInput";
 
 export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdmin, user, integration, scanSettings, toast, shiftExpired = false, shiftTakeovers = {}, onShiftTakeover }) {
-  const customerList = Array.isArray(customers) ? customers : (customers?.list || []);
+  const customerList = getCustomerList(customers);
   const today = fmtDate();
   const inputRef  = useRef(null);
   const videoRef  = useRef(null);
@@ -437,13 +438,11 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
           {extraFields.map(f => (
             <div key={f.id}>
               <label className="lbl">{f.label}{f.required ? " *" : ""}</label>
-              {f.type === "Onay Kutusu"
-                ? <label className="chk-row" style={{ height: 48, border: "1.5px solid var(--brd)", borderRadius: "var(--r)", padding: "0 14px", background: "var(--s2)" }}>
-                    <input type="checkbox" checked={!!extras[f.id]} onChange={e => setExtras(p => ({ ...p, [f.id]: e.target.checked }))} /><span>{f.label}</span>
-                  </label>
-                : f.type === "Tarih" ? <input type="date" value={extras[f.id] || ""} onChange={e => setExtras(p => ({ ...p, [f.id]: e.target.value }))} />
-                : f.type === "Sayı"  ? <input type="number" inputMode="numeric" placeholder="0" value={extras[f.id] || ""} onChange={e => setExtras(p => ({ ...p, [f.id]: e.target.value }))} />
-                : <input type="text" placeholder={f.label + "..."} value={extras[f.id] || ""} onChange={e => setExtras(p => ({ ...p, [f.id]: e.target.value }))} autoFocus />}
+              <FieldInput
+                field={f}
+                value={extras[f.id]}
+                onChange={(v) => setExtras(p => ({ ...p, [f.id]: v }))}
+              />
             </div>
           ))}
           <div style={{ display: "flex", gap: 8 }}>
@@ -518,13 +517,11 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
               {extraFields.map(f => (
                 <div key={f.id}>
                   <label className="lbl">{f.label}{f.required ? " *" : ""}</label>
-                  {f.type === "Onay Kutusu"
-                    ? <label className="chk-row" style={{ height: 48, border: "1.5px solid var(--brd)", borderRadius: "var(--r)", padding: "0 14px", background: "var(--s2)" }}>
-                        <input type="checkbox" checked={!!extras[f.id]} onChange={e => setExtras(p => ({ ...p, [f.id]: e.target.checked }))} /><span>{f.label}</span>
-                      </label>
-                    : f.type === "Tarih" ? <input type="date" value={extras[f.id] || ""} onChange={e => setExtras(p => ({ ...p, [f.id]: e.target.value }))} />
-                    : f.type === "Sayı"  ? <input type="number" inputMode="numeric" placeholder="0" value={extras[f.id] || ""} onChange={e => setExtras(p => ({ ...p, [f.id]: e.target.value }))} />
-                    : <input type="text" placeholder={f.label + "..."} value={extras[f.id] || ""} onChange={e => setExtras(p => ({ ...p, [f.id]: e.target.value }))} />}
+                  <FieldInput
+                    field={f}
+                    value={extras[f.id]}
+                    onChange={(v) => setExtras(p => ({ ...p, [f.id]: v }))}
+                  />
                 </div>
               ))}
             </div>
