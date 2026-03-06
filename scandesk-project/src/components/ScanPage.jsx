@@ -6,6 +6,7 @@ import { fmtDate, fmtTime, nowTs, playBeep } from "../utils";
 import { supabaseInsert, sheetsInsert } from "../services/integrations";
 import EditRecordModal from "./EditRecordModal";
 import CustomerModal from "./CustomerModal";
+import ShiftInheritModal from "./ShiftInheritModal";
 
 export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdmin, user, integration, scanSettings, toast, currentShift, setCurrentShift, shiftList }) {
   const customerList = Array.isArray(customers) ? customers : (customers?.list || []);
@@ -31,6 +32,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const [bulkMode, setBulkMode]   = useState(false);
   const [bulkList, setBulkList]   = useState([]);
   const [editDupRec, setEditDupRec] = useState(null);
+  const [inheritModal, setInheritModal] = useState(false);
   const recentRef = useRef(new Map());
 
   const { autoSave, addDetailAfterScan, vibration, beep, recentLimit = 10 } = scanSettings;
@@ -197,7 +199,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     const ex = findExistingRec(bc);
     if (ex) {
       setEditDupRec(ex);
-      toast("Bu barkod zaten kayıtlı. İstersen düzenle.", "var(--err)");
+      toast("⚠ Bu barkod bu vardiyada zaten var", "var(--err)");
       if (vibration && navigator.vibrate) navigator.vibrate([120, 80, 120]);
       if (beep) playBeep();
       scheduleFocus();
@@ -236,6 +238,39 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     if (pendingBc) doSaveCode(pendingBc, extras);
     else doSaveCode(barcode, extras);
   }, [pendingBc, barcode, extras, doSaveCode]);
+
+  const copyFromShift = useCallback((sourceShift, selectedIds) => {
+    const todayStr = fmtDate();
+    const selectedSet = new Set(selectedIds);
+    const currentBarcodes = new Set(
+      (records || []).filter(r => r.shift === currentShift && r.date === todayStr).map(r => r.barcode)
+    );
+    const toCopy = (records || []).filter(r =>
+      r.shift === sourceShift &&
+      r.date === todayStr &&
+      selectedSet.has(r.id) &&
+      !currentBarcodes.has(r.barcode)
+    );
+    const now = new Date();
+    toCopy.forEach(r => {
+      onSave({
+        ...r,
+        id: genId(),
+        timestamp: now.toISOString(),
+        date: fmtDate(now),
+        time: fmtTime(now),
+        shift: currentShift,
+        inheritedFromShift: sourceShift,
+        synced: false,
+      });
+    });
+    setInheritModal(false);
+    if (toCopy.length > 0) {
+      toast(`✓ ${toCopy.length} kayıt ${sourceShift} vardiyasından kopyalandı`, "var(--ok)");
+    } else {
+      toast("Kopyalanacak kayıt bulunamadı", "var(--acc)");
+    }
+  }, [records, currentShift, onSave, toast]);
 
   const handleKey = e => {
     if (e.key !== "Enter") return;
@@ -436,6 +471,14 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
             {currentShift && <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: 2 }}>{currentShift}</div>}
           </div>
           <div className="row" style={{ gap: 8 }}>
+            <button
+              className="btn btn-ghost btn-sm"
+              style={{ height: 26, fontSize: 11 }}
+              onClick={() => setInheritModal(true)}
+              title="Önceki vardiyadan kayıt kopyala"
+            >
+              <Ic d={I.upload} s={13} /> Devral
+            </button>
             <select
               value={currentShift}
               onChange={e => setCurrentShift(e.target.value)}
@@ -460,7 +503,14 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
                 view.map((r, i) => (
                   <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 4px', borderBottom: i === view.length - 1 ? 'none' : '1px solid var(--brd)' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div className="bc" style={{ fontWeight: 900 }}>{r.barcode}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div className="bc" style={{ fontWeight: 900 }}>{r.barcode}</div>
+                        {r.inheritedFromShift && (
+                          <span style={{ fontSize: 9, color: 'var(--tx3)', background: 'var(--s2)', border: '1px solid var(--brd)', borderRadius: 4, padding: '1px 5px', whiteSpace: 'nowrap' }}>
+                            devralındı
+                          </span>
+                        )}
+                      </div>
                       <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 2 }}>
                         {(r.scanned_by || '—')} · {(r.customer || '—')} &nbsp; {r.time || ''}
                       </div>
@@ -475,6 +525,8 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
       </div>
 
       {editDupRec && <EditRecordModal record={editDupRec} fields={fields} customers={customerList} onSave={(r)=>{ onEdit(r); setEditDupRec(null); }} onClose={()=>setEditDupRec(null)} />}
+
+      {inheritModal && <ShiftInheritModal shiftList={shiftList} currentShift={currentShift} records={records} onCopy={copyFromShift} onClose={() => setInheritModal(false)} />}
 
       {custModal && <CustomerModal customers={customerList} selected={customer}
         onSelect={v => { setCustomer(v); scheduleFocus(); }} onClose={() => { setCustModal(false); scheduleFocus(); }}

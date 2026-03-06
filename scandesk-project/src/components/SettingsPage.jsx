@@ -40,7 +40,7 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
         <Row icon={I.edit} label="Taramadan Sonra Detay Ekle" sub="Önce barkod taranır, sonra diğer alanlar doldurulur"><Toggle value={settings.addDetailAfterScan} onChange={v => set("addDetailAfterScan", v)} /></Row>
         <Row icon={I.vib} label="Titreşim"><Toggle value={settings.vibration} onChange={v => set("vibration", v)} /></Row>
         <Row icon={I.bell} label="Bip Sesi"><Toggle value={settings.beep} onChange={v => set("beep", v)} /></Row>
-        <Row icon={I.data} label="Son Okutulanlar" sub="Tarama ekranında gösterilecek kayıt sayısı">
+        <Row icon={I.data} label="Son Okutmalar" sub="Aktif vardiyada gösterilecek son kayıt sayısı">
           <select
             value={String(settings.recentLimit ?? 10)}
             onChange={e => set('recentLimit', parseInt(e.target.value, 10))}

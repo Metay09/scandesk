@@ -9,6 +9,7 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
   const [grouped, setGrouped] = useState(true);
   const [editRec, setEditRec] = useState(null);
   const [sel, setSel] = useState(() => new Set());
+  const [shiftFilter, setShiftFilter] = useState("all");
   const importRef = useRef(null);
   const toggleSel = (id) => setSel(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const clearSel = () => setSel(new Set());
@@ -70,11 +71,14 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
   };
 
   const allF = [{ id: "barcode", label: "Barkod", type: "Metin" }, ...fields.filter(f => f.id !== "barcode")];
-  const filtered = records.filter(r =>
-    [...allF, { id: "customer" }, { id: "scanned_by" }].some(f =>
+  const allShifts = [...new Set(records.map(r => r.shift).filter(Boolean))].sort();
+  const filtered = records.filter(r => {
+    if (shiftFilter !== "all" && r.shift !== shiftFilter) return false;
+    if (!q) return true;
+    return [...allF, { id: "customer" }, { id: "scanned_by" }, { id: "shift" }].some(f =>
       String(r[f.id] ?? "").toLowerCase().includes(q.toLowerCase())
-    )
-  );
+    );
+  });
   const groups = {};
   filtered.forEach(r => { const k = r.customer || "(Müşteri yok)"; if (!groups[k]) groups[k] = []; groups[k].push(r); });
 
@@ -152,6 +156,14 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
           <span className="srch-ico"><Ic d={I.search} s={16} /></span>
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="Ara..." />
         </div>
+        <select
+          value={shiftFilter}
+          onChange={e => setShiftFilter(e.target.value)}
+          style={{ height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: 600, flexShrink: 0 }}
+        >
+          <option value="all">Tüm Vardiyalar</option>
+          {allShifts.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
         <button className={`btn btn-sm ${grouped ? "btn-info" : "btn-ghost"}`} onClick={() => setGrouped(p => !p)}>
           <Ic d={I.group} s={15} />
         </button>
