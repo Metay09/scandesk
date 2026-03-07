@@ -4,13 +4,14 @@ import Modal from "./Modal";
 
 const DEFAULT_CUSTOMER = "-Boş-";
 
-export default function CustomerModal({ customers, onClose, onAdd, onRemove, isAdmin, selectedCustomer = "", onSelect }) {
+export default function CustomerModal({ customers, onClose, onAdd, onRemove, canManage = false, selectedCustomer = "", onSelect }) {
   const [newName, setNewName] = useState("");
   const list = useMemo(
     () => [DEFAULT_CUSTOMER, ...customers.filter(c => c && c !== DEFAULT_CUSTOMER)],
     [customers]
   );
   const add = () => {
+    if (!canManage || !onAdd) return;
     const name = newName.trim();
     if (!name || name === DEFAULT_CUSTOMER) return;
     onAdd(name);
@@ -22,12 +23,14 @@ export default function CustomerModal({ customers, onClose, onAdd, onRemove, isA
     onClose?.();
   };
   return (
-    <Modal title="Müşteri Yönet" icon={I.group} onClose={onClose}>
-      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        <input value={newName} onChange={e => setNewName(e.target.value)}
-          placeholder="Yeni müşteri adı..." onKeyDown={e => e.key === "Enter" && add()} />
-        <button className="btn btn-primary btn-sm" onClick={add}><Ic d={I.plus} s={15} /></button>
-      </div>
+    <Modal title="Müşteri Paneli" icon={I.group} onClose={onClose}>
+      {canManage && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <input value={newName} onChange={e => setNewName(e.target.value)}
+            placeholder="Yeni müşteri adı..." onKeyDown={e => e.key === "Enter" && add()} />
+          <button className="btn btn-primary btn-sm" onClick={add}><Ic d={I.plus} s={15} /></button>
+        </div>
+      )}
       {list.length === 0 && <p style={{ color: "var(--tx3)", fontSize: 13, textAlign: "center" }}>Henüz müşteri eklenmedi</p>}
       {list.map(c => {
         const isDefault = c === DEFAULT_CUSTOMER;
@@ -44,9 +47,9 @@ export default function CustomerModal({ customers, onClose, onAdd, onRemove, isA
               onClick={() => handleSelect(c)}>
               <Ic d={I.check} s={12} /> Seç
             </button>
-            {!isDefault && (
+            {canManage && !isDefault && (
               <button className="btn btn-danger btn-sm" style={{ height: 30, padding: "0 8px" }}
-                onClick={() => onRemove(c)}>
+                onClick={() => onRemove?.(c)}>
                 <Ic d={I.del} s={13} />
               </button>
             )}

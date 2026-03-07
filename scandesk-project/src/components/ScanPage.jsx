@@ -6,7 +6,7 @@ import { genId } from "../constants";
 import { fmtDate, fmtTime, nowTs, playBeep, getCurrentShift, FIXED_SHIFTS, getCustomerList } from "../utils";
 import { supabaseInsert, sheetsInsert } from "../services/integrations";
 import EditRecordModal from "./EditRecordModal";
-import CustomerModal from "./CustomerModal";
+import CustomerPicker from "./CustomerPicker";
 import ShiftInheritModal from "./ShiftInheritModal";
 import ShiftTakeoverPrompt from "./ShiftTakeoverPrompt";
 import FieldInput from "./FieldInput";
@@ -44,7 +44,6 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const [barcode, setBarcode]     = useState("");
   const [extras, setExtras]       = useState({});
   const [flash, setFlash]         = useState("ready");
-  const [custModal, setCustModal] = useState(false);
   const [customer, setCustomer]   = useState(() => {
     // Load from localStorage, default to empty string
     try {
@@ -126,7 +125,6 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
   const handleCustomerSelect = (val) => {
     setCustomer(normalizeCustomer(val));
-    setCustModal(false);
     scheduleFocus();
   };
 
@@ -536,54 +534,15 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
       {/* Müşteri */}
       <div className="cust-bar">
-        <label className="lbl" style={{ marginBottom: 4, fontSize: 12 }}>Müşteri</label>
-        <div style={{ position: "relative" }}>
-          <input
-            type="text"
-            list="customer-suggestions"
-            value={customer}
-            onChange={e => setCustomer(normalizeCustomer(e.target.value))}
-            placeholder="Müşteri adı girin veya seçin..."
-            style={{
-              width: "100%",
-              height: 40,
-              borderRadius: 10,
-              padding: "0 40px 0 12px",
-              background: "var(--s2)",
-              color: "var(--tx)",
-              border: "1.5px solid var(--brd)",
-              fontSize: 13,
-              fontWeight: 600
-            }}
-          />
-          <datalist id="customer-suggestions">
-            <option value="-Boş-" />
-            {customerList.map(c => <option key={c} value={c} />)}
-          </datalist>
-          <button
-            type="button"
-            onClick={() => setCustModal(true)}
-            style={{
-              position: "absolute",
-              right: 8,
-              top: "50%",
-              transform: "translateY(-50%)",
-              width: 28,
-              height: 28,
-              borderRadius: 6,
-              border: "none",
-              background: "var(--inf2)",
-              color: "var(--inf)",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center"
-            }}
-            title="Müşteri yönet"
-          >
-            <Ic d={I.settings} s={14} />
-          </button>
-        </div>
+        <CustomerPicker
+          customers={customerList}
+          value={customer}
+          onChange={handleCustomerSelect}
+          onClose={scheduleFocus}
+          canManage={isAdmin}
+          onAdd={customers.add}
+          onRemove={customers.remove}
+        />
       </div>
 
       {/* Status */}
@@ -794,7 +753,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
         })()}
       </div>
 
-      {editDupRec && <EditRecordModal record={editDupRec} fields={fields} customers={customerList} onSave={(r)=>{ onEdit(r); setEditDupRec(null); }} onClose={()=>setEditDupRec(null)} />}
+      {editDupRec && <EditRecordModal record={editDupRec} fields={fields} customers={customers} canManageCustomers={isAdmin} onSave={(r)=>{ onEdit(r); setEditDupRec(null); }} onClose={()=>setEditDupRec(null)} />}
 
       {inheritModal && <ShiftInheritModal currentShift={currentShift} records={records} onCopy={copyFromShift} onClose={() => setInheritModal(false)} />}
 
@@ -805,12 +764,6 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
           onCancel={handleTakeoverCancel}
         />
       )}
-
-      {custModal && <CustomerModal customers={customerList}
-        selectedCustomer={customer || ""}
-        onSelect={handleCustomerSelect}
-        onClose={() => { setCustModal(false); scheduleFocus(); }}
-        onAdd={customers.add} onRemove={customers.remove} isAdmin={isAdmin} />}
     </div>
   );
 }

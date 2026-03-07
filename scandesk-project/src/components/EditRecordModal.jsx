@@ -1,11 +1,14 @@
 import { Ic, I } from "./Icon";
 import Modal from "./Modal";
 import FieldInput from "./FieldInput";
+import CustomerPicker from "./CustomerPicker";
 import { useFormState } from "../hooks/useFormState";
+import { getCustomerList } from "../utils";
 
-export default function EditRecordModal({ record, fields, customers, onSave, onClose }) {
+export default function EditRecordModal({ record, fields, customers, onSave, onClose, canManageCustomers = false }) {
   const [form, set] = useFormState({ ...record });
   const allF = [{ id: "barcode", label: "Barkod", type: "Metin" }, ...fields.filter(f => f.id !== "barcode")];
+  const customerList = getCustomerList(customers);
   const normalizeCustomer = (val) => val === "-Boş-" ? "" : val;
 
   const footer = (
@@ -26,19 +29,15 @@ export default function EditRecordModal({ record, fields, customers, onSave, onC
         </div>
       ))}
       <div>
-        <label className="lbl">Müşteri</label>
-        <input
-          type="text"
-          list="edit-customer-suggestions"
+        <CustomerPicker
+          label="Müşteri"
+          customers={customerList}
           value={form.customer || ""}
-          onChange={e => set("customer", normalizeCustomer(e.target.value))}
-          placeholder="Müşteri adı girin veya seçin..."
+          onChange={name => set("customer", normalizeCustomer(name))}
+          canManage={canManageCustomers}
+          onAdd={canManageCustomers ? customers?.add : undefined}
+          onRemove={canManageCustomers ? customers?.remove : undefined}
         />
-        <datalist id="edit-customer-suggestions">
-          <option value="-Boş-" />
-          <option value="" />
-          {customers.map(c => <option key={c} value={c} />)}
-        </datalist>
       </div>
       <div style={{ padding: "9px 12px", background: "var(--pur2)", border: "1.5px solid var(--pur3)", borderRadius: "var(--r)", fontSize: 12, color: "var(--pur)", display: "flex", alignItems: "center", gap: 7 }}>
         <Ic d={I.sig} s={13} /> Kaydeden: <b>{form.scanned_by}</b>
