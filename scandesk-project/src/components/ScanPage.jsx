@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
+import { BarcodeFormat, DecodeHintType, NotFoundException } from "@zxing/library";
 import { Ic, I } from "./Icon";
 import { genId } from "../constants";
 import { fmtDate, fmtTime, nowTs, playBeep, getCurrentShift, FIXED_SHIFTS, getCustomerList } from "../utils";
@@ -10,6 +11,21 @@ import ShiftInheritModal from "./ShiftInheritModal";
 import ShiftTakeoverPrompt from "./ShiftTakeoverPrompt";
 import FieldInput from "./FieldInput";
 
+const SCAN_FORMATS = [
+  BarcodeFormat.QR_CODE,
+  BarcodeFormat.DATA_MATRIX,
+  BarcodeFormat.PDF_417,
+  BarcodeFormat.AZTEC,
+  BarcodeFormat.CODE_128,
+  BarcodeFormat.CODE_39,
+  BarcodeFormat.EAN_13,
+  BarcodeFormat.EAN_8,
+  BarcodeFormat.UPC_A,
+  BarcodeFormat.UPC_E,
+  BarcodeFormat.ITF,
+  BarcodeFormat.CODABAR,
+];
+
 export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdmin, user, integration, scanSettings, toast, shiftExpired = false, shiftTakeovers = {}, onShiftTakeover }) {
   const customerList = getCustomerList(customers);
   const normalizeCustomer = (val) => val === "-Boş-" ? "" : val;
@@ -17,9 +33,13 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const inputRef  = useRef(null);
   const videoRef  = useRef(null);
   const streamRef = useRef(null);
-  const detRef    = useRef(null);
-  const rafRef    = useRef(null);
+  const readerRef = useRef(null);
+  const scanLockRef = useRef(false);
+  const lockTimerRef = useRef(null);
+  const lastScanRef = useRef({ value: null, ts: 0 });
   const focusTimer = useRef(null);
+  const bulkModeRef = useRef(false);
+  const addDetailAfterScanRef = useRef(false);
 
   const [barcode, setBarcode]     = useState("");
   const [extras, setExtras]       = useState({});
@@ -81,6 +101,9 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const [adminShift, setAdminShift] = useState(() => getCurrentShift());
   const currentShift = isAdmin ? adminShift : getCurrentShift();
 
+  useEffect(() => { bulkModeRef.current = bulkMode; }, [bulkMode]);
+  useEffect(() => { addDetailAfterScanRef.current = addDetailAfterScan; }, [addDetailAfterScan]);
+
   // Persist customer selection to localStorage
   useEffect(() => {
     try {
@@ -89,17 +112,6 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
       console.error("Failed to save customer to localStorage:", e);
     }
   }, [customer]);
-
-  useEffect(() => {
-    if (typeof BarcodeDetector !== "undefined") {
-      BarcodeDetector.getSupportedFormats().then(fmts => {
-        detRef.current = new BarcodeDetector({ formats: fmts });
-      }).catch(() => {
-        detRef.current = new BarcodeDetector();
-      });
-    }
-    return () => { stopCamera(); clearTimeout(focusTimer.current); };
-  }, []);
 
   const scheduleFocus = useCallback(() => {
     clearTimeout(focusTimer.current);
@@ -119,48 +131,136 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   };
 
   /* ── Camera ── */
-  const startCamera = async () => {
+  const cleanupScanner = useCallback(() => {
+    try { readerRef.current?.reset(); } catch (err) { console.warn("ZXing reset error:", err); }
+    readerRef.current = null;
+    scanLockRef.current = false;
+    clearTimeout(lockTimerRef.current);
+    lockTimerRef.current = null;
+  }, []);
+
+  const stopCamera = useCallback(() => {
+    streamRef.current?.getTracks()?.forEach(t => t.stop());
+    streamRef.current = null;
+    if (videoRef.current) {
+      try { videoRef.current.pause?.(); } catch {}
+      videoRef.current.srcObject = null;
+    }
+    setTorchOn(false);
+    trackRef.current = null;
+    setCamActive(false);
+    cleanupScanner();
+    scheduleFocus();
+  }, [cleanupScanner, scheduleFocus]);
+
+  const startDecoding = useCallback(() => {
+    if (!videoRef.current) return;
+
+    if (!readerRef.current) {
+      const hints = new Map();
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, SCAN_FORMATS);
+      hints.set(DecodeHintType.TRY_HARDER, true);
+      readerRef.current = new BrowserMultiFormatReader(hints);
+    }
+
+    const reader = readerRef.current;
+    const cooldown = scanSettings.scanDebounceMs || 800;
+    scanLockRef.current = false;
+
+    try {
+      reader.decodeFromVideoElementContinuously(videoRef.current, (res, err) => {
+        if (err) {
+          if (!(err instanceof NotFoundException)) console.warn("ZXing decode error:", err);
+          return;
+        }
+        if (!res) return;
+
+        const code = res.getText?.() || "";
+        if (!code) return;
+
+        const now = Date.now();
+        const lastTs = lastScanRef.current?.ts || 0;
+        if (scanLockRef.current && (now - lastTs) < cooldown) return;
+        scanLockRef.current = true;
+        lastScanRef.current = { value: code, ts: now };
+        clearTimeout(lockTimerRef.current);
+        lockTimerRef.current = setTimeout(() => { scanLockRef.current = false; }, Math.max(cooldown, 350));
+
+        setScanPulse(true);
+        setTimeout(() => setScanPulse(false), 220);
+
+        if (!bulkModeRef.current) {
+          stopCamera();
+        }
+
+        if (addDetailAfterScanRef.current) {
+          setPendingBc(code);
+          setBarcode(code);
+        } else {
+          onBarcodeRef.current?.(code);
+        }
+      });
+    } catch (err) {
+      console.error("ZXing start error:", err);
+      toast("Kamera başlatılırken hata oluştu: " + (err?.message || err), "var(--err)");
+      stopCamera();
+    }
+  }, [scanSettings, stopCamera, toast]);
+
+  const startCamera = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
       toast("Bu tarayıcı kamera erişimini desteklemiyor.", "var(--err)");
       return;
     }
+    if (camActive) return;
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
         video: {
-          facingMode: "environment",
+          facingMode: { ideal: "environment" },
           width: { ideal: 1280 },
           height: { ideal: 720 }
         }
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        // Wait for video to be ready
-        await new Promise((resolve) => {
-          if (videoRef.current) {
-            videoRef.current.onloadedmetadata = () => {
-              videoRef.current?.play().then(resolve).catch(resolve);
-            };
-          } else {
-            resolve();
-          }
-        });
-      }
       trackRef.current = stream.getVideoTracks ? (stream.getVideoTracks()[0] || null) : null;
       setTorchOn(false);
       setCamActive(true);
-
-      if (detRef.current) {
-        // Start detection loop
-        rafRef.current = requestAnimationFrame(detectFrame);
-      } else {
-        toast("Bu tarayıcı otomatik barkod tespitini desteklemiyor. Manuel giriş yapın.", "var(--acc)");
-      }
     } catch (e) {
       console.error('Camera error:', e);
-      toast("Kamera izni alınamadı: " + e.message, "var(--err)");
+      toast("Kamera izni alınamadı: " + (e?.message || e), "var(--err)");
+      stopCamera();
     }
-  };
+  }, [camActive, startDecoding, toast, stopCamera]);
+
+  useEffect(() => {
+    if (!camActive) return;
+    let cancelled = false;
+
+    const tryAttach = async () => {
+      if (cancelled) return;
+      const videoEl = videoRef.current;
+      const stream = streamRef.current;
+      if (!videoEl || !stream) {
+        requestAnimationFrame(tryAttach);
+        return;
+      }
+      if (readerRef.current) return;
+      try {
+        videoEl.srcObject = stream;
+        await videoEl.play();
+        startDecoding();
+      } catch (err) {
+        console.error("Video play error:", err);
+        toast("Kamera akışı başlatılamadı: " + (err?.message || err), "var(--err)");
+        stopCamera();
+      }
+    };
+
+    tryAttach();
+    return () => { cancelled = true; };
+  }, [camActive, startDecoding, stopCamera, toast]);
 
   const toggleTorch = async () => {
     try {
@@ -176,94 +276,13 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     }
   };
 
-  // ZXing fallback
   useEffect(() => {
-    if (!camActive) return;
-    if (detRef.current) return;  // Use native BarcodeDetector if available
-
-    const reader = new BrowserMultiFormatReader();
-    let active = true;
-
-    (async () => {
-      try {
-        if (!videoRef.current) return;
-        await reader.decodeFromVideoDevice(undefined, videoRef.current, (res, err) => {
-          if (!active) return;
-          if (res) {
-            const code = res.getText();
-            console.log('ZXing detected barcode:', code);
-
-            // Process barcode similar to native detector
-            setScanPulse(true);
-            setTimeout(() => setScanPulse(false), 220);
-
-            if (!bulkMode) {
-              stopCamera();
-            }
-
-            if (addDetailAfterScan) {
-              setPendingBc(code);
-              setBarcode(code);
-            } else {
-              onBarcodeRef.current(code);
-            }
-          }
-        });
-      } catch (e) {
-        console.warn('ZXing error:', e);
-      }
-    })();
-
     return () => {
-      active = false;
-      try { reader.reset(); } catch {}
+      stopCamera();
+      clearTimeout(focusTimer.current);
+      clearTimeout(lockTimerRef.current);
     };
-  }, [camActive, bulkMode, addDetailAfterScan]);
-
-  const detectFrame = async () => {
-    if (!videoRef.current || !detRef.current || !streamRef.current) return;
-    try {
-      const barcodes = await detRef.current.detect(videoRef.current);
-      if (barcodes.length > 0) {
-        const code = barcodes[0].rawValue;
-        setScanPulse(true);
-        setTimeout(() => setScanPulse(false), 220);
-
-        // Only stop camera in non-bulk mode
-        if (!bulkMode) {
-          stopCamera();
-        }
-
-        // Show detail form if setting is enabled, otherwise process barcode directly
-        if (addDetailAfterScan) {
-          setPendingBc(code);
-          setBarcode(code);
-        } else {
-          onBarcode(code);
-        }
-
-        // In bulk mode, continue scanning
-        if (bulkMode) {
-          rafRef.current = requestAnimationFrame(detectFrame);
-        }
-        return;
-      }
-    } catch (err) {
-      // Log error for debugging but continue scanning
-      console.warn('Barcode detection error:', err);
-    }
-    rafRef.current = requestAnimationFrame(detectFrame);
-  };
-
-  const stopCamera = () => {
-    cancelAnimationFrame(rafRef.current);
-    streamRef.current?.getTracks().forEach(t => t.stop());
-    streamRef.current = null;
-    setTorchOn(false);
-    trackRef.current = null;
-    setCamActive(false);
-    scheduleFocus();
-  };
+  }, [stopCamera]);
 
   /* ── Helpers ── */
   const normalizeCode = (c) => String(c ?? "").trim();
