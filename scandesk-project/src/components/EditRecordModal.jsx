@@ -6,6 +6,7 @@ import { useFormState } from "../hooks/useFormState";
 export default function EditRecordModal({ record, fields, customers, onSave, onClose }) {
   const [form, set] = useFormState({ ...record });
   const allF = [{ id: "barcode", label: "Barkod", type: "Metin" }, ...fields.filter(f => f.id !== "barcode")];
+  const normalizeCustomer = (val) => val === "-Boş-" ? "" : val;
 
   const footer = (
     <>
@@ -30,7 +31,7 @@ export default function EditRecordModal({ record, fields, customers, onSave, onC
           type="text"
           list="edit-customer-suggestions"
           value={form.customer || ""}
-          onChange={e => set("customer", e.target.value)}
+          onChange={e => set("customer", normalizeCustomer(e.target.value))}
           placeholder="Müşteri adı girin veya seçin..."
         />
         <datalist id="edit-customer-suggestions">

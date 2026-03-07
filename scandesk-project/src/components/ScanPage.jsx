@@ -12,6 +12,7 @@ import FieldInput from "./FieldInput";
 
 export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdmin, user, integration, scanSettings, toast, shiftExpired = false, shiftTakeovers = {}, onShiftTakeover }) {
   const customerList = getCustomerList(customers);
+  const normalizeCustomer = (val) => val === "-Boş-" ? "" : val;
   const today = fmtDate();
   const inputRef  = useRef(null);
   const videoRef  = useRef(null);
@@ -27,7 +28,8 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const [customer, setCustomer]   = useState(() => {
     // Load from localStorage, default to empty string
     try {
-      return localStorage.getItem("scandesk_default_customer") || "";
+      const saved = localStorage.getItem("scandesk_default_customer") || "";
+      return normalizeCustomer(saved);
     } catch {
       return "";
     }
@@ -109,6 +111,12 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   }, [camActive]);
 
   useEffect(() => { scheduleFocus(); }, [scheduleFocus]);
+
+  const handleCustomerSelect = (val) => {
+    setCustomer(normalizeCustomer(val));
+    setCustModal(false);
+    scheduleFocus();
+  };
 
   /* ── Camera ── */
   const startCamera = async () => {
@@ -515,7 +523,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
             type="text"
             list="customer-suggestions"
             value={customer}
-            onChange={e => setCustomer(e.target.value)}
+            onChange={e => setCustomer(normalizeCustomer(e.target.value))}
             placeholder="Müşteri adı girin veya seçin..."
             style={{
               width: "100%",
@@ -780,6 +788,8 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
       )}
 
       {custModal && <CustomerModal customers={customerList}
+        selectedCustomer={customer || ""}
+        onSelect={handleCustomerSelect}
         onClose={() => { setCustModal(false); scheduleFocus(); }}
         onAdd={customers.add} onRemove={customers.remove} isAdmin={isAdmin} />}
     </div>

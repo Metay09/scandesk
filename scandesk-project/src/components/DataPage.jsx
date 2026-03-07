@@ -205,12 +205,20 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
 
 
       <div style={{ marginBottom: 10 }}>
-        <div style={{ display: "flex", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
-          <div className="srch" style={{ flex: "1 1 140px", minWidth: 120 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: 8,
+            marginBottom: 6,
+            alignItems: "end"
+          }}
+        >
+          <div className="srch" style={{ width: "100%" }}>
             <span className="srch-ico"><Ic d={I.search} s={16} /></span>
             <input value={q} onChange={e => setQ(e.target.value)} placeholder="Ara..." />
           </div>
-          <div style={{ flex: "1 1 140px", minWidth: 120 }}>
+          <div>
             <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx2)", marginBottom: 4 }}>Tarih</label>
             <input
               type="date"
@@ -220,7 +228,7 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
             />
           </div>
           {isAdmin && allShifts.length > 0 && (
-            <div style={{ flex: "1 1 140px", minWidth: 120 }}>
+            <div>
               <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx2)", marginBottom: 4 }}>Vardiya</label>
               <select
                 value={shiftFilter}
@@ -233,7 +241,7 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
             </div>
           )}
           {allUsers.length > 0 && (
-            <div style={{ flex: "1 1 140px", minWidth: 120 }}>
+            <div>
               <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx2)", marginBottom: 4 }}>Kullanıcı</label>
               <select
                 value={userFilter}
@@ -246,7 +254,7 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
             </div>
           )}
           {allCustomers.length > 0 && (
-            <div style={{ flex: "1 1 140px", minWidth: 120 }}>
+            <div>
               <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx2)", marginBottom: 4 }}>Müşteri</label>
               <select
                 value={customerFilter}
