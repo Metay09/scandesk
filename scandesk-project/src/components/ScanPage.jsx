@@ -54,6 +54,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     }
   });
   const [camActive, setCamActive] = useState(false);
+  const [camStatus, setCamStatus] = useState("idle");
   const [torchOn, setTorchOn] = useState(false);
   const [scanPulse, setScanPulse] = useState(false);
   const trackRef = useRef(null);
@@ -147,6 +148,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     setTorchOn(false);
     trackRef.current = null;
     setCamActive(false);
+    setCamStatus("idle");
     cleanupScanner();
     scheduleFocus();
   }, [cleanupScanner, scheduleFocus]);
@@ -187,10 +189,6 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
         setScanPulse(true);
         setTimeout(() => setScanPulse(false), 220);
 
-        if (!bulkModeRef.current) {
-          stopCamera();
-        }
-
         if (addDetailAfterScanRef.current) {
           setPendingBc(code);
           setBarcode(code);
@@ -208,11 +206,16 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const startCamera = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
       toast("Bu tarayıcı kamera erişimini desteklemiyor.", "var(--err)");
+      setCamStatus("error: unsupported");
       return;
     }
     if (camActive) return;
 
+    setCamStatus("modal-opened");
+    setCamActive(true);
+
     try {
+      setCamStatus("requesting-camera");
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
         video: {
@@ -224,13 +227,14 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
       streamRef.current = stream;
       trackRef.current = stream.getVideoTracks ? (stream.getVideoTracks()[0] || null) : null;
       setTorchOn(false);
-      setCamActive(true);
+      setCamStatus("stream-acquired");
     } catch (e) {
       console.error('Camera error:', e);
-      toast("Kamera izni alınamadı: " + (e?.message || e), "var(--err)");
-      stopCamera();
+      const msg = e?.message || e;
+      setCamStatus("error: " + msg);
+      toast("Kamera izni alınamadı: " + msg, "var(--err)");
     }
-  }, [camActive, startDecoding, toast, stopCamera]);
+  }, [camActive, toast]);
 
   useEffect(() => {
     if (!camActive) return;
@@ -244,21 +248,25 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
         requestAnimationFrame(tryAttach);
         return;
       }
-      if (readerRef.current) return;
       try {
         videoEl.srcObject = stream;
+        setCamStatus((prev) => prev.startsWith("error") ? prev : "video-attached");
         await videoEl.play();
+        if (cancelled) return;
+        setCamStatus((prev) => prev.startsWith("error") ? prev : "playing");
         startDecoding();
       } catch (err) {
+        if (cancelled) return;
         console.error("Video play error:", err);
-        toast("Kamera akışı başlatılamadı: " + (err?.message || err), "var(--err)");
-        stopCamera();
+        const msg = err?.message || err;
+        setCamStatus("error: " + msg);
+        toast("Kamera akışı başlatılamadı: " + msg, "var(--err)");
       }
     };
 
     tryAttach();
     return () => { cancelled = true; };
-  }, [camActive, startDecoding, stopCamera, toast]);
+  }, [camActive, startDecoding, toast]);
 
   const toggleTorch = async () => {
     try {
@@ -554,39 +562,63 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
       {/* Camera */}
       {camActive && (
-        <div className="cam-box cam-full">
-          <video ref={videoRef} autoPlay playsInline muted className="cam-video" />
+        <div className="overlay cam-overlay-shell">
+          <div className="cam-modal">
+            <div className="cam-box cam-full">
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="cam-video"
+                style={{ minHeight: "55vh" }}
+              />
 
-          <div className="cam-topbar">
-            <div className="cam-top-left">
-              <div className="cam-pill">{customer || "(Boş)"}</div>
-              {bulkMode ? <div className="cam-pill cam-pill-info">Toplu Mod</div> : <div className="cam-pill">Tekli</div>}
-            </div>
-            <div className="cam-top-right">
-              {torchSupported && (
-                <button
-                  type="button"
-                  className="cam-ic"
-                  onClick={() => toggleTorch()}
-                  title="Flaş"
-                  style={{ background: torchOn ? 'rgba(255,220,0,.75)' : 'rgba(0,0,0,.55)' }}
+              <div className="cam-topbar">
+                <div className="cam-top-left">
+                  <div className="cam-pill">{customer || "(Boş)"}</div>
+                  {bulkMode ? <div className="cam-pill cam-pill-info">Toplu Mod</div> : <div className="cam-pill">Tekli</div>}
+                </div>
+                <div className="cam-top-right">
+                  {torchSupported && (
+                    <button
+                      type="button"
+                      className="cam-ic"
+                      onClick={() => toggleTorch()}
+                      title="Flaş"
+                      style={{ background: torchOn ? 'rgba(255,220,0,.75)' : 'rgba(0,0,0,.55)' }}
+                    >
+                      <Ic d={I.zap} s={16} />
+                    </button>
+                  )}
+                  <button type="button" className="cam-ic" onClick={stopCamera} title="Kapat">✕</button>
+                </div>
+              </div>
+
+              <div className="cam-overlay">
+                <div
+                  className={`cam-frame ${scanSettings.scanBoxShape === "rect" ? "rect" : "square"}`}
+                  style={{
+                    width: `${Math.round((scanSettings.scanBoxSize || 0.72) * 100)}%`,
+                    aspectRatio: scanSettings.scanBoxShape === "rect" ? "16 / 9" : "1 / 1",
+                  }}
                 >
-                  <Ic d={I.zap} s={16} />
-                </button>
-              )}
-              <button type="button" className="cam-ic" onClick={stopCamera} title="Kapat">✕</button>
+                  <div className="cam-line" />
+                </div>
+              </div>
             </div>
-          </div>
 
-          <div className="cam-overlay">
-            <div
-              className={`cam-frame ${scanSettings.scanBoxShape === "rect" ? "rect" : "square"}`}
-              style={{
-                width: `${Math.round((scanSettings.scanBoxSize || 0.72) * 100)}%`,
-                aspectRatio: scanSettings.scanBoxShape === "rect" ? "16 / 9" : "1 / 1",
-              }}
-            >
-              <div className="cam-line" />
+            <div className="cam-debug">
+              <div className="cam-debug-label">Kamera Durumu:</div>
+              {["modal-opened", "requesting-camera", "stream-acquired", "video-attached", "playing"].map(step => (
+                <span key={step} className={`cam-debug-chip ${camStatus === step ? "active" : ""}`}>
+                  {camStatus === step ? "●" : "○"} {step}
+                </span>
+              ))}
+              {camStatus.startsWith("error") && (
+                <span className="cam-debug-chip err">{camStatus}</span>
+              )}
+              {camStatus === "idle" && <span className="cam-debug-chip">idle</span>}
             </div>
           </div>
         </div>

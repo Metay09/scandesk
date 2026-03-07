@@ -125,6 +125,8 @@ label.lbl{display:block;font-size:11px;font-weight:700;color:var(--tx2);
 .bc-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--tx3);pointer-events:none;}
 .bc-wrap .barcode-input{padding-left:50px;padding-right:52px;}
 
+.cam-overlay-shell{align-items:center !important;z-index:220;}
+.cam-modal{background:var(--s1);border:1.5px solid var(--brd);border-radius:var(--r2);padding:12px;box-shadow:0 8px 40px rgba(0,0,0,.55);width:100%;max-width:780px;display:flex;flex-direction:column;gap:10px;}
 .cam-box{border-radius:var(--r);overflow:hidden;border:1.5px solid var(--brd);
   background:#000;position:relative;margin-bottom:10px;}
 .cam-video{width:100%;display:block;max-height:220px;object-fit:cover;}
@@ -139,6 +141,12 @@ label.lbl{display:block;font-size:11px;font-weight:700;color:var(--tx2);
   background:linear-gradient(90deg,transparent,var(--acc),transparent);
   animation:scan 2s ease-in-out infinite;}
 @keyframes scan{0%,100%{top:8%}50%{top:88%}}
+
+.cam-debug{display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:var(--s2);border:1.5px solid var(--brd);border-radius:var(--r);padding:10px 12px;font-size:12px;}
+.cam-debug-label{font-weight:800;color:var(--tx2);margin-right:2px;text-transform:uppercase;letter-spacing:.06em;}
+.cam-debug-chip{border:1px solid var(--brd);padding:6px 10px;border-radius:999px;font-weight:700;color:var(--tx2);background:var(--s3);}
+.cam-debug-chip.active{background:var(--inf2);border-color:var(--inf3);color:var(--inf);}
+.cam-debug-chip.err{background:var(--err2);border-color:var(--err3);color:var(--err);}
 
 .cam-topbar{position:absolute;left:0;right:0;top:0;padding:10px;display:flex;justify-content:space-between;gap:10px;pointer-events:auto;}
 .cam-top-left{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
