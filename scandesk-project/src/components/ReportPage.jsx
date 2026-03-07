@@ -45,8 +45,12 @@ export default function ReportPage({ records, fields, isAdmin, currentShift }) {
   const [customerFilter, setCustomerFilter] = useState("all");
   const [userFilter, setUserFilter] = useState("all");
 
+  const visibleRecords = isAdmin
+    ? records
+    : records.filter(r => r.shift === currentShift);
+
   // Filter records based on selected filters
-  const filtered = records.filter(r => {
+  const filtered = visibleRecords.filter(r => {
     if (dateFilter && r.date !== dateFilter) return false;
     if (isAdmin && shiftFilter !== "all" && r.shift !== shiftFilter) return false;
     if (customerFilter !== "all" && r.customer !== customerFilter) return false;
@@ -59,9 +63,9 @@ export default function ReportPage({ records, fields, isAdmin, currentShift }) {
   const byCustomer = groupBy(filtered, "customer");
   const byUser     = groupBy(filtered, "scanned_by");
 
-  const allShifts = [...new Set(records.map(r => r.shift).filter(Boolean))].sort();
-  const allCustomers = [...new Set(records.map(r => r.customer).filter(Boolean))].sort();
-  const allUsers = [...new Set(records.map(r => r.scanned_by_username).filter(Boolean))].sort();
+  const allShifts = [...new Set(visibleRecords.map(r => r.shift).filter(Boolean))].sort();
+  const allCustomers = [...new Set(visibleRecords.map(r => r.customer).filter(Boolean))].sort();
+  const allUsers = [...new Set(visibleRecords.map(r => r.scanned_by_username).filter(Boolean))].sort();
 
   return (
     <div className="page">
