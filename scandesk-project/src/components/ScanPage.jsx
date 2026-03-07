@@ -112,6 +112,12 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
   useEffect(() => { scheduleFocus(); }, [scheduleFocus]);
 
+  const handleCustomerSelect = (val) => {
+    setCustomer(normalizeCustomer(val));
+    setCustModal(false);
+    scheduleFocus();
+  };
+
   /* ── Camera ── */
   const startCamera = async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -782,6 +788,8 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
       )}
 
       {custModal && <CustomerModal customers={customerList}
+        selectedCustomer={customer || ""}
+        onSelect={handleCustomerSelect}
         onClose={() => { setCustModal(false); scheduleFocus(); }}
         onAdd={customers.add} onRemove={customers.remove} isAdmin={isAdmin} />}
     </div>
