@@ -31,6 +31,23 @@ export const getShiftByHour = (h) => {
 // Şu anki saate göre aktif vardiyayı döner
 export const getCurrentShift = () => getShiftByHour(new Date().getHours());
 
+// Kayıtların ait olduğu vardiya tarihini hesapla (iş günü)
+export const getShiftDate = (ts, shiftLabel) => {
+  const d = ts ? new Date(ts) : new Date();
+  if (Number.isNaN(d.getTime())) return "";
+  const shift = shiftLabel || getShiftByHour(d.getHours());
+  // Gerektiğinde vardiya sınırları gün değişimini geçiyorsa burada ayarlanabilir
+  return fmtDate(d);
+};
+
+// Varsa shiftDate kullan, yoksa timestamp/date üzerinden hesapla
+export const deriveShiftDate = (record) => {
+  if (!record) return "";
+  if (record.shiftDate) return record.shiftDate;
+  const ts = record.timestamp || record.date || nowTs();
+  return getShiftDate(ts, record.shift);
+};
+
 export async function hashPassword(plain, saltHex) {
   const salt = saltHex
     ? new Uint8Array(saltHex.match(/.{2}/g).map(b => parseInt(b, 16)))

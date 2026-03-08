@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { Ic, I } from "./Icon";
+import { deriveShiftDate, getShiftDate } from "../utils";
 
 function groupBy(arr, key) {
   const m = {};
   arr.forEach(r => {
-    const k = r[key] || "(Bilinmiyor)";
-    if (!m[k]) m[k] = 0;
-    m[k]++;
+    const k = typeof key === "function" ? key(r) : (r[key] || "(Bilinmiyor)");
+    const keyVal = k || "(Bilinmiyor)";
+    if (!m[keyVal]) m[keyVal] = 0;
+    m[keyVal]++;
   });
   return Object.entries(m).sort((a, b) => b[1] - a[1]);
 }
@@ -45,20 +47,22 @@ export default function ReportPage({ records, fields, isAdmin, currentShift }) {
   const [customerFilter, setCustomerFilter] = useState("all");
   const [userFilter, setUserFilter] = useState("all");
 
+  const currentShiftDate = getShiftDate(undefined, currentShift);
+
   const visibleRecords = isAdmin
     ? records
-    : records.filter(r => r.shift === currentShift);
+    : records.filter(r => r.shift === currentShift && deriveShiftDate(r) === currentShiftDate);
 
   // Filter records based on selected filters
   const filtered = visibleRecords.filter(r => {
-    if (dateFilter && r.date !== dateFilter) return false;
+    if (dateFilter && deriveShiftDate(r) !== dateFilter) return false;
     if (isAdmin && shiftFilter !== "all" && r.shift !== shiftFilter) return false;
     if (customerFilter !== "all" && r.customer !== customerFilter) return false;
     if (userFilter !== "all" && r.scanned_by_username !== userFilter) return false;
     return true;
   });
 
-  const byDate     = groupBy(filtered, "date");
+  const byDate     = groupBy(filtered, (r) => deriveShiftDate(r));
   const byShift    = groupBy(filtered, "shift");
   const byCustomer = groupBy(filtered, "customer");
   const byUser     = groupBy(filtered, "scanned_by");

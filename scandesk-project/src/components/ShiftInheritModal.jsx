@@ -1,10 +1,10 @@
 import { useState, useMemo } from "react";
 import { Ic, I } from "./Icon";
-import { fmtDate, FIXED_SHIFTS, toggleSetMember } from "../utils";
+import { FIXED_SHIFTS, toggleSetMember, getShiftDate, deriveShiftDate } from "../utils";
 import Modal from "./Modal";
 
 export default function ShiftInheritModal({ currentShift, records, onCopy, onClose }) {
-  const today = fmtDate();
+  const today = getShiftDate();
 
   const allLabels = FIXED_SHIFTS.map(s => s.label);
   const otherShifts = allLabels.filter(s => s !== currentShift);
@@ -16,10 +16,10 @@ export default function ShiftInheritModal({ currentShift, records, onCopy, onClo
 
   const buildCandidates = (src) => {
     const currentBarcodes = new Set(
-      (records || []).filter(r => r.shift === currentShift && r.date === today).map(r => r.barcode)
+      (records || []).filter(r => r.shift === currentShift && deriveShiftDate(r) === today).map(r => r.barcode)
     );
     return (records || [])
-      .filter(r => r.shift === src && r.date === today && !currentBarcodes.has(r.barcode))
+      .filter(r => r.shift === src && deriveShiftDate(r) === today && !currentBarcodes.has(r.barcode))
       .sort((a, b) => (a.timestamp || "").localeCompare(b.timestamp || ""));
   };
 

@@ -4,7 +4,7 @@ import { Ic, I } from "./Icon";
 import EditRecordModal from "./EditRecordModal";
 import Modal from "./Modal";
 import { genId } from "../constants";
-import { toggleSetMember, getCustomerList } from "../utils";
+import { toggleSetMember, getCustomerList, deriveShiftDate, getShiftDate } from "../utils";
 
 export default function DataPage({ fields, records, onDelete, onEdit, onExport, onImport, customers, settings, toast, isAdmin, currentShift }) {
   const [q, setQ]           = useState("");
@@ -22,6 +22,7 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
   const clearSel = () => setSel(new Set());
 
   const customerList = getCustomerList(customers);
+  const currentShiftDate = getShiftDate(undefined, currentShift);
 
   const handleImportFile = (e) => {
     const file = e.target.files?.[0];
@@ -67,6 +68,7 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
           }
           if (!rec.date) rec.date = rec.timestamp.slice(0, 10);
           if (!rec.time) rec.time = rec.timestamp.slice(11, 16);
+          rec.shiftDate = getShiftDate(rec.timestamp || rec.date, rec.shift);
           return rec;
         }).filter(Boolean);
         if (!imported.length) { toast && toast("Barkod sütunu bulunamadı", "var(--err)"); return; }
@@ -74,10 +76,11 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
         // Check for duplicates (same barcode + shift + date)
         const duplicates = [];
         imported.forEach(rec => {
+          const recShiftDate = deriveShiftDate(rec);
           const existing = records.find(r =>
             String(r.barcode ?? "").trim() === String(rec.barcode ?? "").trim() &&
             String(r.shift ?? "") === String(rec.shift ?? "") &&
-            r.date === rec.date
+            deriveShiftDate(r) === recShiftDate
           );
           if (existing) {
             duplicates.push({ imported: rec, existing });
@@ -122,13 +125,15 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
 
   const allF = [{ id: "barcode", label: "Barkod", type: "Metin" }, ...fields.filter(f => f.id !== "barcode")];
   // Admin tüm kayıtları görebilir; normal kullanıcılar sadece kendi vardiyalarındaki kayıtları görür
-  const visibleRecords = isAdmin ? records : records.filter(r => r.shift === currentShift);
+  const visibleRecords = isAdmin
+    ? records
+    : records.filter(r => r.shift === currentShift && deriveShiftDate(r) === currentShiftDate);
   const allShifts = isAdmin ? [...new Set(visibleRecords.map(r => r.shift).filter(Boolean))].sort() : [];
   const allUsers  = [...new Set(visibleRecords.map(r => r.scanned_by_username).filter(Boolean))].sort();
   const allCustomers = [...new Set(visibleRecords.map(r => r.customer).filter(Boolean))].sort();
   const filtered = visibleRecords.filter(r => {
     if (isAdmin && shiftFilter !== "all" && r.shift !== shiftFilter) return false;
-    if (dateFilter && r.date !== dateFilter) return false;
+    if (dateFilter && deriveShiftDate(r) !== dateFilter) return false;
     if (userFilter !== "all" && r.scanned_by_username !== userFilter) return false;
     if (customerFilter !== "all" && r.customer !== customerFilter) return false;
     if (!q) return true;
@@ -355,7 +360,7 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
                 {pendingImport.duplicates.slice(0, 10).map((dup, idx) => (
                   <div key={idx} style={{ padding: "6px 8px", background: "var(--s1)", border: "1px solid var(--brd)", borderRadius: 6, marginBottom: 6, fontSize: 11 }}>
                     <div><b>Barkod:</b> {dup.imported.barcode}</div>
-                    <div><b>Vardiya:</b> {dup.imported.shift} • <b>Tarih:</b> {dup.imported.date}</div>
+                    <div><b>Vardiya:</b> {dup.imported.shift} • <b>Tarih:</b> {deriveShiftDate(dup.imported)}</div>
                   </div>
                 ))}
                 {pendingImport.duplicates.length > 10 && (
