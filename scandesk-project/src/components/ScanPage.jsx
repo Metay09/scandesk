@@ -55,6 +55,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   });
   const [camActive, setCamActive] = useState(false);
   const [camStatus, setCamStatus] = useState("idle");
+  const camActiveRef = useRef(false);
   const [torchOn, setTorchOn] = useState(false);
   const [scanPulse, setScanPulse] = useState(false);
   const trackRef = useRef(null);
@@ -103,6 +104,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
   useEffect(() => { bulkModeRef.current = bulkMode; }, [bulkMode]);
   useEffect(() => { addDetailAfterScanRef.current = addDetailAfterScan; }, [addDetailAfterScan]);
+  useEffect(() => { camActiveRef.current = camActive; }, [camActive]);
 
   // Persist customer selection to localStorage
   useEffect(() => {
@@ -116,11 +118,11 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const scheduleFocus = useCallback(() => {
     clearTimeout(focusTimer.current);
     focusTimer.current = setTimeout(() => {
-      if (!camActive && inputRef.current && document.activeElement !== inputRef.current) {
+      if (!camActiveRef.current && inputRef.current && document.activeElement !== inputRef.current) {
         inputRef.current.focus({ preventScroll: true });
       }
     }, 120);
-  }, [camActive]);
+  }, []);
 
   useEffect(() => { scheduleFocus(); }, [scheduleFocus]);
 
