@@ -75,15 +75,22 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
 
         // Check for duplicates (same barcode + shift + date)
         const duplicates = [];
+        const seenMap = new Map();
         imported.forEach(rec => {
           const recShiftDate = deriveShiftDate(rec);
-          const existing = records.find(r =>
-            String(r.barcode ?? "").trim() === String(rec.barcode ?? "").trim() &&
-            String(r.shift ?? "") === String(rec.shift ?? "") &&
-            deriveShiftDate(r) === recShiftDate
-          );
-          if (existing) {
-            duplicates.push({ imported: rec, existing });
+          const key = `${String(rec.barcode ?? "").trim()}|${String(rec.shift ?? "")}|${recShiftDate}`;
+          if (seenMap.has(key)) {
+            duplicates.push({ imported: rec, existing: seenMap.get(key), reason: "file" });
+          } else {
+            const existing = records.find(r =>
+              String(r.barcode ?? "").trim() === String(rec.barcode ?? "").trim() &&
+              String(r.shift ?? "") === String(rec.shift ?? "") &&
+              deriveShiftDate(r) === recShiftDate
+            );
+            if (existing) {
+              duplicates.push({ imported: rec, existing, reason: "existing" });
+            }
+            seenMap.set(key, rec);
           }
         });
 
@@ -359,8 +366,13 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
               <div style={{ maxHeight: 200, overflowY: "auto", border: "1.5px solid var(--brd)", borderRadius: "var(--r)", padding: 8, background: "var(--s2)" }}>
                 {pendingImport.duplicates.slice(0, 10).map((dup, idx) => (
                   <div key={idx} style={{ padding: "6px 8px", background: "var(--s1)", border: "1px solid var(--brd)", borderRadius: 6, marginBottom: 6, fontSize: 11 }}>
-                    <div><b>Barkod:</b> {dup.imported.barcode}</div>
-                    <div><b>Vardiya:</b> {dup.imported.shift} • <b>Tarih:</b> {deriveShiftDate(dup.imported)}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span><b>Barkod:</b> {dup.imported.barcode}</span>
+                      <span className="badge" style={{ background: "var(--s3)", color: "var(--tx2)" }}>
+                        {dup.reason === "file" ? "Dosyada tekrarlı" : "Sistemde var"}
+                      </span>
+                    </div>
+                    <div><b>Vardiya:</b> {dup.imported.shift || "—"} • <b>Tarih:</b> {deriveShiftDate(dup.imported)}</div>
                   </div>
                 ))}
                 {pendingImport.duplicates.length > 10 && (
