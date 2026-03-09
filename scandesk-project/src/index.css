@@ -291,9 +291,9 @@ label.lbl{display:block;font-size:11px;font-weight:700;color:var(--tx2);
 @media(max-width:639px){.side-nav{display:none!important;}}
 
 /* ── TOAST ── */
-.toast-stack{position:fixed;bottom:70px;right:12px;display:flex;flex-direction:column;
+.toast-stack{position:fixed;top:calc(62px + env(safe-area-inset-top));right:12px;display:flex;flex-direction:column;
   gap:6px;z-index:999;max-width:calc(100vw - 24px);}
-@media(min-width:640px){.toast-stack{bottom:16px;}}
+@media(min-width:640px){.toast-stack{top:auto;bottom:calc(16px + env(safe-area-inset-bottom));}}
 .toast{background:var(--s1);border:1.5px solid;border-radius:var(--r);
   padding:10px 14px;box-shadow:0 4px 20px rgba(0,0,0,.5);
   display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;
