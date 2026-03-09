@@ -308,8 +308,8 @@ export default function App() {
 
         if (isNative()) {
           const b64 = XLSX.write(wb, { bookType: "xlsx", type: "base64" });
-          await Filesystem.writeFile({ path: filename, data: b64, directory: Directory.Documents });
-          await Share.share({ title: "ScanDesk Excel", text: "Excel dosyası hazır", url: (await Filesystem.getUri({ directory: Directory.Documents, path: filename })).uri });
+          await Filesystem.writeFile({ path: filename, data: b64, directory: Directory.Cache });
+          await Share.share({ title: "ScanDesk Excel", text: "Excel dosyası hazır", url: (await Filesystem.getUri({ directory: Directory.Cache, path: filename })).uri });
           toast("Excel hazır (Paylaş)", "var(--ok)");
         } else {
           XLSX.writeFile(wb, filename);
@@ -324,8 +324,8 @@ export default function App() {
         const csv = [hdr, ...data].map(r => r.map(c => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
         const filename = `scandesk_${Date.now()}.csv`;
         if (isNative()) {
-          await Filesystem.writeFile({ path: filename, data: "\uFEFF" + csv, directory: Directory.Documents, encoding: Encoding.UTF8 });
-          await Share.share({ title: "ScanDesk CSV", text: "CSV dosyası hazır", url: (await Filesystem.getUri({ directory: Directory.Documents, path: filename })).uri });
+          await Filesystem.writeFile({ path: filename, data: "\uFEFF" + csv, directory: Directory.Cache, encoding: Encoding.UTF8 });
+          await Share.share({ title: "ScanDesk CSV", text: "CSV dosyası hazır", url: (await Filesystem.getUri({ directory: Directory.Cache, path: filename })).uri });
           toast("CSV hazır (Paylaş)", "var(--ok)");
         } else {
           const a = document.createElement("a");
