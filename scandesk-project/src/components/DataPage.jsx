@@ -4,24 +4,18 @@ import { Ic, I } from "./Icon";
 import EditRecordModal from "./EditRecordModal";
 import Modal from "./Modal";
 import { genId } from "../constants";
-import { toggleSetMember, getCustomerList, deriveShiftDate, getShiftDate } from "../utils";
+import { toggleSetMember, deriveShiftDate, getShiftDate } from "../utils";
 
 export default function DataPage({ fields, records, onDelete, onEdit, onExport, onImport, customers, settings, toast, isAdmin, currentShift, user }) {
   const [q, setQ]           = useState("");
   const [grouped, setGrouped] = useState(true);
   const [editRec, setEditRec] = useState(null);
   const [sel, setSel] = useState(() => new Set());
-  const [shiftFilter, setShiftFilter] = useState("all");
-  const [dateFilter, setDateFilter]   = useState("");   // "YYYY-MM-DD" ya da ""
-  const [userFilter, setUserFilter]   = useState("all");
-  const [customerFilter, setCustomerFilter] = useState("all");
-  const [showShiftCol, setShowShiftCol] = useState(false); // Vardiya kolonu varsayılan gizli
   const [pendingImport, setPendingImport] = useState(null); // Admin approval için bekleyen import
   const importRef = useRef(null);
   const toggleSel = (id) => setSel(p => toggleSetMember(p, id));
   const clearSel = () => setSel(new Set());
 
-  const customerList = getCustomerList(customers);
   const currentShiftDate = getShiftDate(undefined, currentShift);
 
   const handleImportFile = (e) => {
@@ -137,14 +131,7 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
   const visibleRecords = isAdmin
     ? records
     : records.filter(r => r.shift === currentShift && deriveShiftDate(r) === currentShiftDate);
-  const allShifts = isAdmin ? [...new Set(visibleRecords.map(r => r.shift).filter(Boolean))].sort() : [];
-  const allUsers  = [...new Set(visibleRecords.map(r => r.scanned_by_username).filter(Boolean))].sort();
-  const allCustomers = [...new Set(visibleRecords.map(r => r.customer).filter(Boolean))].sort();
   const filtered = visibleRecords.filter(r => {
-    if (isAdmin && shiftFilter !== "all" && r.shift !== shiftFilter) return false;
-    if (dateFilter && deriveShiftDate(r) !== dateFilter) return false;
-    if (userFilter !== "all" && r.scanned_by_username !== userFilter) return false;
-    if (customerFilter !== "all" && r.customer !== customerFilter) return false;
     if (!q) return true;
     return [...allF, { id: "customer" }, { id: "scanned_by" }, { id: "shift" }].some(f =>
       String(r[f.id] ?? "").toLowerCase().includes(q.toLowerCase())
@@ -165,7 +152,6 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
         </td>
       ))}
       {showCust && <td style={{ color: "var(--inf)", fontWeight: 600, fontSize: 12 }}>{r.customer || "—"}</td>}
-      {showShiftCol && <td style={{ fontSize: 11, color: "var(--tx2)", whiteSpace: "nowrap" }}>{r.shift || "—"}</td>}
       <td><span className="sig-cell">{r.scanned_by}</span></td>
       <td style={{ fontSize: 10, color: "var(--tx2)", fontFamily: "var(--mono)", whiteSpace: "nowrap" }}>
         {new Date(r.timestamp).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}
@@ -183,7 +169,7 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
     <thead><tr>
       <th>#</th>
       <th style={{ width: 34 }}><input type="checkbox" checked={sel.size>0 && filtered.length>0 && filtered.every(r=>sel.has(r.id))} onChange={e => { if (e.target.checked) setSel(new Set(filtered.map(r=>r.id))); else clearSel(); }} /></th>{allF.map(f => <th key={f.id}>{f.label}</th>)}
-      {showCust && <th>Müşteri</th>}{showShiftCol && <th>Vardiya</th>}<th>Kaydeden</th><th>Saat</th><th></th>
+      {showCust && <th>Müşteri</th>}<th>Kaydeden</th><th>Saat</th><th></th>
     </tr></thead>
   );
 
@@ -227,74 +213,11 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
         {/* Search box - standalone, wider */}
         <div className="srch" style={{ width: "100%", marginBottom: 8 }}>
           <span className="srch-ico"><Ic d={I.search} s={16} /></span>
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Ara..." />
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Barkod ara..." />
         </div>
 
         {/* Filter dropdowns - labels inside as first option */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-            gap: 8,
-            marginBottom: 6
-          }}
-        >
-          <input
-            type="date"
-            value={dateFilter}
-            onChange={e => setDateFilter(e.target.value)}
-            placeholder="Tarih"
-            style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: dateFilter ? "var(--tx)" : "var(--tx2)", border: "1.5px solid var(--brd)", fontSize: 12 }}
-          />
-          {isAdmin && allShifts.length > 0 && (
-            <select
-              value={shiftFilter}
-              onChange={e => setShiftFilter(e.target.value)}
-              style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: shiftFilter === "all" ? "var(--tx2)" : "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: shiftFilter === "all" ? 400 : 600 }}
-            >
-              <option value="all">Vardiya</option>
-              {allShifts.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          )}
-          {allUsers.length > 0 && (
-            <select
-              value={userFilter}
-              onChange={e => setUserFilter(e.target.value)}
-              style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: userFilter === "all" ? "var(--tx2)" : "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: userFilter === "all" ? 400 : 600 }}
-            >
-              <option value="all">Kullanıcı</option>
-              {allUsers.map(u => <option key={u} value={u}>{u}</option>)}
-            </select>
-          )}
-          {allCustomers.length > 0 && (
-            <select
-              value={customerFilter}
-              onChange={e => setCustomerFilter(e.target.value)}
-              style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: customerFilter === "all" ? "var(--tx2)" : "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: customerFilter === "all" ? 400 : 600 }}
-            >
-              <option value="all">Müşteri</option>
-              {allCustomers.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          )}
-        </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {(dateFilter || (isAdmin && shiftFilter !== "all") || userFilter !== "all" || customerFilter !== "all") && (
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={() => { setDateFilter(""); if (isAdmin) setShiftFilter("all"); setUserFilter("all"); setCustomerFilter("all"); }}
-            >
-              <Ic d={I.close} s={14} /> Filtreleri Temizle
-            </button>
-          )}
-          {isAdmin && (
-            <button
-              className={`btn btn-sm ${showShiftCol ? "btn-info" : "btn-ghost"}`}
-              title={showShiftCol ? "Vardiya kolonunu gizle" : "Vardiya kolonunu göster"}
-              onClick={() => setShowShiftCol(p => !p)}
-            >
-              <Ic d={I.fields} s={14} /> Vardiya
-            </button>
-          )}
           <button className={`btn btn-sm ${grouped ? "btn-info" : "btn-ghost"}`} onClick={() => setGrouped(p => !p)}>
             <Ic d={I.group} s={15} /> {grouped ? "Gruplu" : "Liste"}
           </button>
