@@ -13,8 +13,6 @@ export const INITIAL_SETTINGS = {
   allowAddField: true,
   allowEditField: true,
   allowDeleteField: true,
-  scanBoxShape: "square",
-  scanBoxSize: 0.72,
   recentLimit: 10,
   scanDebounceMs: 800,
   enforceBarcodeLengthMatch: false,

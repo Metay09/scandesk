@@ -41,22 +41,6 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
             <option value="0">Full</option>
           </select>
         </Row>
-
-        <Row icon={I.qr} label="Tarama Alanı Şekli" sub="Kare veya dikdörtgen">
-          <select value={settings.scanBoxShape || 'square'} onChange={e => set('scanBoxShape', e.target.value)} style={{ height: 34, borderRadius: 10, padding: '0 10px', background: 'var(--s2)', color: 'var(--tx)', border: '1.5px solid var(--brd)' }}>
-            <option value="square">Kare</option>
-            <option value="rect">Dikdörtgen</option>
-          </select>
-        </Row>
-        <Row icon={I.qr} label="Tarama Alanı Boyutu" sub="Kamera üstündeki yeşil alanın büyüklüğü">
-          <select value={String(Math.round((settings.scanBoxSize || 0.72) * 100))} onChange={e => set('scanBoxSize', Number(e.target.value) / 100)} style={{ height: 34, borderRadius: 10, padding: '0 10px', background: 'var(--s2)', color: 'var(--tx)', border: '1.5px solid var(--brd)' }}>
-            <option value="55">%55</option>
-            <option value="65">%65</option>
-            <option value="72">%72</option>
-            <option value="80">%80</option>
-            <option value="90">%90</option>
-          </select>
-        </Row>
         <Row icon={I.qr} label="Tarama Hızı" sub="Aynı barkodu art arda okumayı geciktirir">
           <select value={String(settings.scanDebounceMs || 800)} onChange={e => set('scanDebounceMs', Number(e.target.value) || 800)} style={{ height: 34, borderRadius: 10, padding: '0 10px', background: 'var(--s2)', color: 'var(--tx)', border: '1.5px solid var(--brd)' }}>
             <option value="300">Hızlı (300ms)</option>
