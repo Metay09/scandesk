@@ -109,7 +109,7 @@ export default function ShiftInheritModal({ currentShift, records, onCopy, onClo
                     <input
                       value={searchQuery}
                       onChange={e => setSearchQuery(e.target.value)}
-                      placeholder="Ara..."
+                      placeholder="Barkod ara..."
                     />
                   </div>
                   {uniqueCustomers.length > 0 && (
