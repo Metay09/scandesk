@@ -134,7 +134,8 @@ label.lbl{display:block;font-size:11px;font-weight:700;color:var(--tx2);
 .cam-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;}
 .cam-frame{border:2.5px solid var(--acc);border-radius:14px;
   box-shadow:0 0 0 2000px rgba(0,0,0,.44);position:relative;overflow:hidden;
-  max-width:520px;}
+  max-width:520px;transition:border-color 0.22s ease;}
+.cam-frame.cam-frame-success{border-color:var(--ok);box-shadow:0 0 0 2000px rgba(0,0,0,.44),0 0 20px var(--ok);}
 .cam-frame.square{border-radius:18px;}
 .cam-frame.rect{border-radius:16px;}
 .cam-line{position:absolute;left:0;right:0;height:2px;
@@ -153,7 +154,10 @@ label.lbl{display:block;font-size:11px;font-weight:700;color:var(--tx2);
 .cam-pill{background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.18);color:#fff;font-size:12px;padding:6px 10px;border-radius:999px;max-width:70vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .cam-pill-info{border-color:rgba(110,231,183,.35);}
 .cam-top-right{display:flex;gap:8px;align-items:center;}
-.cam-ic{pointer-events:auto;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.18);color:#fff;border-radius:16px;padding:6px 10px;font-size:14px;font-weight:800;}
+.cam-ic{pointer-events:auto;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.18);color:#fff;border-radius:16px;padding:6px 10px;font-size:14px;font-weight:800;cursor:pointer;transition:all 0.15s ease;}
+.cam-ic:hover{background:rgba(0,0,0,.75);}
+.cam-ic:active{transform:scale(0.95);}
+.cam-close-btn{background:rgba(0,0,0,.7);border:1.5px solid rgba(255,255,255,.3);padding:8px 12px;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;}
 
 .last-scan{padding:11px 14px;border-radius:var(--r);margin-bottom:10px;
   background:var(--ok2);border:1.5px solid var(--ok3);

@@ -167,6 +167,9 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
     const reader = readerRef.current;
     const cooldown = scanSettings.scanDebounceMs || 800;
+    // Use scanDebounceMs to control decode interval (default 800ms = ~120-200ms range suggested)
+    // Lower values = faster scanning but more CPU usage
+    const decodeInterval = Math.max(120, Math.min(scanSettings.scanDebounceMs || 150, 200));
     scanLockRef.current = false;
 
     try {
@@ -191,8 +194,19 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
         clearTimeout(lockTimerRef.current);
         lockTimerRef.current = setTimeout(() => { scanLockRef.current = false; }, Math.max(cooldown, 350));
 
+        // Visual feedback: green frame flash
         setScanPulse(true);
         setTimeout(() => setScanPulse(false), 220);
+
+        // Haptic feedback: vibration (controlled by settings)
+        if (vibration && navigator.vibrate) {
+          navigator.vibrate([25, 15, 25]); // Short success vibration
+        }
+
+        // Audio feedback: beep (controlled by settings)
+        if (beep) {
+          playBeep();
+        }
 
         if (addDetailAfterScanRef.current) {
           setPendingBc(code);
@@ -206,7 +220,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
       toast("Kamera başlatılırken hata oluştu: " + (err?.message || err), "var(--err)");
       stopCamera();
     }
-  }, [scanSettings, stopCamera, toast]);
+  }, [scanSettings, stopCamera, toast, vibration, beep]);
 
   const startCamera = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -588,13 +602,20 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
                       <Ic d={I.zap} s={16} />
                     </button>
                   )}
-                  <button type="button" className="cam-ic" onClick={stopCamera} title="Kapat">✕</button>
+                  <button
+                    type="button"
+                    className="cam-ic cam-close-btn"
+                    onClick={stopCamera}
+                    title="Kapat"
+                  >
+                    <Ic d={I.x} s={20} />
+                  </button>
                 </div>
               </div>
 
               <div className="cam-overlay">
                 <div
-                  className={`cam-frame ${scanSettings.scanBoxShape === "rect" ? "rect" : "square"}`}
+                  className={`cam-frame ${scanPulse ? "cam-frame-success" : ""} ${scanSettings.scanBoxShape === "rect" ? "rect" : "square"}`}
                   style={{
                     width: `${Math.round((scanSettings.scanBoxSize || 0.72) * 100)}%`,
                     aspectRatio: scanSettings.scanBoxShape === "rect" ? "16 / 9" : "1 / 1",
@@ -603,19 +624,6 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
                   <div className="cam-line" />
                 </div>
               </div>
-            </div>
-
-            <div className="cam-debug">
-              <div className="cam-debug-label">Kamera Durumu:</div>
-              {["modal-opened", "requesting-camera", "stream-acquired", "video-attached", "playing"].map(step => (
-                <span key={step} className={`cam-debug-chip ${camStatus === step ? "active" : ""}`}>
-                  {camStatus === step ? "●" : "○"} {step}
-                </span>
-              ))}
-              {camStatus.startsWith("error") && (
-                <span className="cam-debug-chip err">{camStatus}</span>
-              )}
-              {camStatus === "idle" && <span className="cam-debug-chip">idle</span>}
             </div>
           </div>
         </div>
