@@ -259,11 +259,13 @@ export default function App() {
     const ef = fields.filter(f => f.id !== "barcode");
     const hdr = ["Barkod", ...ef.map(f => f.label), "Müşteri", "Kaydeden", "Kullanıcı Adı", "Tarih", "Saat"];
 
-    // Helper function to safely convert any value to a string for Excel
-    const sanitizeValue = (val) => {
+    // Helper to safely get field value while preserving data types
+    const safeValue = (val) => {
       if (val == null) return "";
-      if (typeof val === "object") return JSON.stringify(val);
-      return String(val);
+      // Preserve primitives (string, number, boolean) as-is for Excel
+      if (typeof val !== "object") return val;
+      // Convert objects/arrays to JSON string as fallback
+      return JSON.stringify(val);
     };
 
     const data = recs.map(r => {
@@ -274,11 +276,11 @@ export default function App() {
         const timeOut = isValidDate ? d.toLocaleTimeString("tr-TR") : "";
 
         return [
-          sanitizeValue(r.barcode),
-          ...ef.map(f => sanitizeValue(r[f.id])),
-          sanitizeValue(r.customer),
-          sanitizeValue(r.scanned_by),
-          sanitizeValue(r.scanned_by_username),
+          safeValue(r.barcode),
+          ...ef.map(f => safeValue(r[f.id])),
+          safeValue(r.customer),
+          safeValue(r.scanned_by),
+          safeValue(r.scanned_by_username),
           dateOut,
           timeOut
         ];
@@ -286,7 +288,7 @@ export default function App() {
         console.error("Error processing record:", r, err);
         // Return a row with error indicator
         return [
-          sanitizeValue(r.barcode),
+          safeValue(r.barcode),
           ...ef.map(() => ""),
           "",
           "",
