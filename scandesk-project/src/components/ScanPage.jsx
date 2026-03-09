@@ -875,6 +875,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
         scanSettings={scanSettings}
         customer={customer}
         bulkMode={bulkMode}
+        closeOnScan={!bulkMode}
       />
     </div>
   );

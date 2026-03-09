@@ -26,6 +26,7 @@ export default function CameraScannerScreen({
   scanSettings = {},
   customer = "",
   bulkMode = false,
+  closeOnScan = false,
 }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -118,8 +119,16 @@ export default function CameraScannerScreen({
       if (onBarcodeScanned) {
         onBarcodeScanned(code);
       }
+
+      // Auto-close camera in single scan mode
+      if (closeOnScan && onClose) {
+        // Delay close slightly to allow feedback animations to complete
+        setTimeout(() => {
+          onClose();
+        }, 300);
+      }
     },
-    [scanDebounceMs, vibration, beep, onBarcodeScanned]
+    [scanDebounceMs, vibration, beep, onBarcodeScanned, closeOnScan, onClose]
   );
 
   const startDecoding = useCallback(async () => {
