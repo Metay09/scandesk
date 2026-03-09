@@ -31,6 +31,25 @@ export const getShiftByHour = (h) => {
 // Şu anki saate göre aktif vardiyayı döner
 export const getCurrentShift = () => getShiftByHour(new Date().getHours());
 
+// Get the end time (in milliseconds since epoch) for a given shift
+export const getShiftEndTime = (shiftLabel) => {
+  const now = new Date();
+  const shift = FIXED_SHIFTS.find(s => s.label === shiftLabel);
+  if (!shift) return null;
+
+  const endHour = shift.end % 24; // Handle 24 -> 0
+  const endTime = new Date(now);
+  endTime.setHours(endHour, 0, 0, 0);
+
+  // If end hour is before current hour, shift ends tomorrow (for overnight shifts like 4-12)
+  const currentHour = now.getHours();
+  if (endHour <= currentHour && shift.start > endHour) {
+    endTime.setDate(endTime.getDate() + 1);
+  }
+
+  return endTime.getTime();
+};
+
 // Kayıtların ait olduğu vardiya tarihini hesapla (iş günü)
 export const getShiftDate = (ts, shiftLabel) => {
   const d = ts ? new Date(ts) : new Date();
