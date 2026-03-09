@@ -6,7 +6,7 @@ import Modal from "./Modal";
 import { genId } from "../constants";
 import { toggleSetMember, getCustomerList, deriveShiftDate, getShiftDate } from "../utils";
 
-export default function DataPage({ fields, records, onDelete, onEdit, onExport, onImport, customers, settings, toast, isAdmin, currentShift }) {
+export default function DataPage({ fields, records, onDelete, onEdit, onExport, onImport, customers, settings, toast, isAdmin, currentShift, user }) {
   const [q, setQ]           = useState("");
   const [grouped, setGrouped] = useState(true);
   const [editRec, setEditRec] = useState(null);
@@ -73,40 +73,44 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
         }).filter(Boolean);
         if (!imported.length) { toast && toast("Barkod sütunu bulunamadı", "var(--err)"); return; }
 
-        // Check for duplicates (barcode only)
+        // Check for duplicates (barcode only - not shift/date)
+        const existingBarcodes = new Set(records.map(r => String(r.barcode ?? "").trim()));
+        const newRecords = [];
         const duplicates = [];
-        const seenMap = new Map();
+
         imported.forEach(rec => {
           const key = String(rec.barcode ?? "").trim();
-          if (seenMap.has(key)) {
-            duplicates.push({ imported: rec, existing: seenMap.get(key), reason: "file" });
+          if (existingBarcodes.has(key)) {
+            duplicates.push(rec);
           } else {
-            const existing = records.find(r =>
-              String(r.barcode ?? "").trim() === key
-            );
-            if (existing) {
-              duplicates.push({ imported: rec, existing, reason: "existing" });
-            }
-            seenMap.set(key, rec);
+            newRecords.push(rec);
+            existingBarcodes.add(key); // Prevent duplicates within the file itself
           }
         });
 
-        if (duplicates.length > 0) {
-          toast && toast(`${duplicates.length} adet tekrar eden kayıt bulundu - Admin onayı gerekli`, "var(--err)");
+        // Show import summary - both admin and regular users can see it
+        const totalCount = imported.length;
+        const duplicateCount = duplicates.length;
+        const newCount = newRecords.length;
 
-          if (!isAdmin) {
-            toast && toast("İçe aktarma için admin yetkisi gerekiyor", "var(--err)");
-            return;
-          }
+        if (duplicateCount > 0) {
+          toast && toast(`${totalCount} kayıt bulundu: ${newCount} yeni, ${duplicateCount} tekrar`, "var(--inf)");
+        }
 
-          // Show confirmation dialog for admin
-          setPendingImport({ records: imported, duplicates });
+        // Auto-skip duplicates, only import new records
+        if (newCount === 0) {
+          toast && toast("Tüm kayıtlar sistemde zaten mevcut", "var(--acc)");
           return;
         }
 
-        // No duplicates, proceed with import
-        onImport(imported);
-        toast && toast(`${imported.length} kayıt içe aktarıldı`, "var(--ok)");
+        // Show analysis panel to all users (both admin and regular)
+        setPendingImport({
+          records: newRecords,
+          duplicates,
+          total: totalCount,
+          newCount,
+          duplicateCount
+        });
       } catch (err) {
         toast && toast("Dosya okunamadı: " + err.message, "var(--err)");
       }
@@ -116,8 +120,9 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
 
   const handleApproveImport = () => {
     if (pendingImport) {
+      // Only import new records (duplicates are auto-skipped)
       onImport(pendingImport.records);
-      toast && toast(`${pendingImport.records.length} kayıt içe aktarıldı (${pendingImport.duplicates.length} tekrar dahil)`, "var(--ok)");
+      toast && toast(`${pendingImport.newCount} yeni kayıt içe aktarıldı`, "var(--ok)");
       setPendingImport(null);
     }
   };
@@ -321,55 +326,63 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
 
       {pendingImport && (
         <Modal
-          title="İçe Aktarma Onayı"
+          title="İçe Aktarma Analizi"
           icon={I.upload}
           onClose={handleCancelImport}
           footer={
             <>
-              <button className="btn btn-ok" style={{ flex: 1 }} onClick={handleApproveImport}>
-                <Ic d={I.check} s={16} /> Onayla ve İçe Aktar
-              </button>
+              {settings.allowImport ? (
+                <button className="btn btn-ok" style={{ flex: 1 }} onClick={handleApproveImport}>
+                  <Ic d={I.check} s={16} /> İçe Aktar ({pendingImport.newCount} Yeni Kayıt)
+                </button>
+              ) : (
+                <div style={{ flex: 1, padding: "10px", background: "var(--err2)", border: "1.5px solid var(--err3)", borderRadius: "var(--r)", fontSize: 12, color: "var(--err)", fontWeight: 600, textAlign: "center" }}>
+                  İçe aktarma yetkisi yok
+                </div>
+              )}
               <button className="btn btn-ghost" style={{ width: 88 }} onClick={handleCancelImport}>İptal</button>
             </>
           }
         >
           <div style={{ marginBottom: 12 }}>
-            <div style={{ padding: "12px", background: "var(--err2)", border: "1.5px solid var(--err3)", borderRadius: "var(--r)", marginBottom: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                <Ic d={I.warning} s={16} />
-                <span style={{ fontWeight: 700, fontSize: 14, color: "var(--err)" }}>Tekrar Eden Kayıtlar Bulundu</span>
+            {pendingImport.duplicateCount > 0 && (
+              <div style={{ padding: "12px", background: "var(--acc2)", border: "1.5px solid var(--acc3)", borderRadius: "var(--r)", marginBottom: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <Ic d={I.warning} s={16} />
+                  <span style={{ fontWeight: 700, fontSize: 14, color: "var(--acc)" }}>Tekrar Eden Kayıtlar Atlanacak</span>
+                </div>
+                <p style={{ fontSize: 12, color: "var(--tx2)", margin: 0 }}>
+                  {pendingImport.duplicateCount} kayıt sistemde zaten mevcut (aynı barkod).
+                  Bu kayıtlar otomatik olarak atlanacak.
+                </p>
               </div>
-              <p style={{ fontSize: 12, color: "var(--tx2)", margin: 0 }}>
-                {pendingImport.duplicates.length} adet kayıt sistemde zaten mevcut (aynı barkod, vardiya ve tarih).
-                İçe aktarmaya devam ederseniz bu kayıtlar tekrar eklenir.
-              </p>
-            </div>
+            )}
             <div style={{ marginBottom: 8 }}>
               <span style={{ fontSize: 12, fontWeight: 600, color: "var(--tx2)" }}>Toplam kayıt:</span>{" "}
-              <span style={{ fontSize: 13, fontWeight: 700 }}>{pendingImport.records.length}</span>
+              <span style={{ fontSize: 13, fontWeight: 700 }}>{pendingImport.total}</span>
             </div>
             <div style={{ marginBottom: 8 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--tx2)" }}>Tekrar eden:</span>{" "}
-              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--err)" }}>{pendingImport.duplicates.length}</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--tx2)" }}>Tekrar eden (atlanacak):</span>{" "}
+              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--acc)" }}>{pendingImport.duplicateCount}</span>
             </div>
             <div style={{ marginBottom: 8 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--tx2)" }}>Yeni kayıt:</span>{" "}
-              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ok)" }}>{pendingImport.records.length - pendingImport.duplicates.length}</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--tx2)" }}>Yeni eklenecek:</span>{" "}
+              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ok)" }}>{pendingImport.newCount}</span>
             </div>
           </div>
           {pendingImport.duplicates.length > 0 && (
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6, color: "var(--tx2)" }}>Tekrar Eden Kayıtlar:</div>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6, color: "var(--tx2)" }}>Tekrar Eden Kayıtlar (Atlanacak):</div>
               <div style={{ maxHeight: 200, overflowY: "auto", border: "1.5px solid var(--brd)", borderRadius: "var(--r)", padding: 8, background: "var(--s2)" }}>
-                {pendingImport.duplicates.slice(0, 10).map((dup, idx) => (
+                {pendingImport.duplicates.slice(0, 10).map((rec, idx) => (
                   <div key={idx} style={{ padding: "6px 8px", background: "var(--s1)", border: "1px solid var(--brd)", borderRadius: 6, marginBottom: 6, fontSize: 11 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <span><b>Barkod:</b> {dup.imported.barcode}</span>
-                      <span className="badge" style={{ background: "var(--s3)", color: "var(--tx2)" }}>
-                        {dup.reason === "file" ? "Dosyada tekrarlı" : "Sistemde var"}
+                      <span><b>Barkod:</b> {rec.barcode}</span>
+                      <span className="badge" style={{ background: "var(--acc2)", color: "var(--acc)" }}>
+                        Sistemde var
                       </span>
                     </div>
-                    <div><b>Vardiya:</b> {dup.imported.shift || "—"} • <b>Tarih:</b> {deriveShiftDate(dup.imported)}</div>
+                    {rec.shift && <div><b>Vardiya:</b> {rec.shift} • <b>Tarih:</b> {deriveShiftDate(rec)}</div>}
                   </div>
                 ))}
                 {pendingImport.duplicates.length > 10 && (

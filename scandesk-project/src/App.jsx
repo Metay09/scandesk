@@ -7,7 +7,7 @@ import * as XLSX from "xlsx";
 import "./index.css";
 import { INITIAL_USERS, INITIAL_SETTINGS, INITIAL_FIELDS, DEFAULT_CUSTS } from "./constants";
 import { isNative, loadState, saveState } from "./services/storage";
-import { getCurrentShift, pad2, deriveShiftDate, getShiftDate } from "./utils";
+import { getCurrentShift, pad2, deriveShiftDate, getShiftDate, getShiftEndTime } from "./utils";
 import { useToast } from "./hooks/useToast";
 import { Ic, I } from "./components/Icon";
 import Login from "./components/Login";
@@ -36,6 +36,7 @@ export default function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem("scandesk_theme") || "dark");
   const [userLoginShift, setUserLoginShift] = useState(null);
   const [graceSecsLeft, setGraceSecsLeft] = useState(null);
+  const [graceEndTime, setGraceEndTime] = useState(null); // Absolute timestamp when grace period ends
   const inGraceRef = useRef(false);
   const [shiftTakeovers, setShiftTakeovers] = useState({});
   const [logoutReason, setLogoutReason] = useState(null);
@@ -187,20 +188,46 @@ export default function App() {
       const current = getCurrentShift();
       if (current !== userLoginShift) {
         inGraceRef.current = true;
-        setGraceSecsLeft(GRACE_PERIOD_SECS);
+        // Calculate absolute end time based on shift end + grace period
+        const shiftEnd = getShiftEndTime(userLoginShift);
+        if (shiftEnd) {
+          const endTime = shiftEnd + (GRACE_PERIOD_SECS * 1000); // Add 5 minutes grace period
+          setGraceEndTime(endTime);
+          // Calculate initial seconds left
+          const secsLeft = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
+          setGraceSecsLeft(secsLeft);
+        } else {
+          // Fallback to old behavior if shift end can't be calculated
+          setGraceSecsLeft(GRACE_PERIOD_SECS);
+        }
         setPage(prev => prev === "scan" ? "data" : prev);
       }
     }, 15_000);
     return () => clearInterval(id);
   }, [user, isAdmin, userLoginShift]);
 
-  // 5 dakika geri sayım + otomatik çıkış
+  // Update grace seconds left based on absolute end time
   useEffect(() => {
-    if (graceSecsLeft === null || !user) return;
-    if (graceSecsLeft === 0) { handleLogout("shift_expired"); return; }
-    const id = setTimeout(() => setGraceSecsLeft(s => (s !== null && s > 0) ? s - 1 : s), 1000);
-    return () => clearTimeout(id);
-  }, [graceSecsLeft, user, handleLogout]);
+    if (graceEndTime === null || !user) return;
+
+    const updateRemainingTime = () => {
+      const now = Date.now();
+      const secsLeft = Math.max(0, Math.floor((graceEndTime - now) / 1000));
+
+      if (secsLeft === 0) {
+        handleLogout("shift_expired");
+      } else {
+        setGraceSecsLeft(secsLeft);
+      }
+    };
+
+    // Update immediately
+    updateRemainingTime();
+
+    // Then update every second
+    const id = setInterval(updateRemainingTime, 1000);
+    return () => clearInterval(id);
+  }, [graceEndTime, user, handleLogout]);
 
   const handleSave   = useCallback(r => {
     const rec = addShiftDate(r);
@@ -365,7 +392,7 @@ export default function App() {
       {/* CONTENT */}
       <div className="scroll-area">
         {page === "scan"     && <ScanPage fields={fields} onSave={handleSave} onEdit={handleEdit} records={records} lastSaved={lastSaved} customers={customers} isAdmin={isAdmin} user={user} integration={integration} scanSettings={settings} toast={toast} shiftExpired={graceSecsLeft !== null && !isAdmin} shiftTakeovers={shiftTakeovers} onShiftTakeover={handleShiftTakeover} />}
-        {page === "data"     && <DataPage     fields={fields} records={records} onDelete={handleDelete} onEdit={handleEdit} onExport={handleExport} onImport={handleImport} customers={customers} settings={settings} toast={toast} isAdmin={isAdmin} currentShift={userLoginShift || getCurrentShift()} />}
+        {page === "data"     && <DataPage     fields={fields} records={records} onDelete={handleDelete} onEdit={handleEdit} onExport={handleExport} onImport={handleImport} customers={customers} settings={settings} toast={toast} isAdmin={isAdmin} currentShift={userLoginShift || getCurrentShift()} user={user} />}
         {page === "report"   && <ReportPage   records={records} fields={fields} isAdmin={isAdmin} currentShift={userLoginShift || getCurrentShift()} />}
         {page === "fields"   && <FieldsPage   fields={fields} setFields={setFields} isAdmin={isAdmin} settings={settings} />}
         {page === "users"    && isAdmin && <UsersPage users={users} setUsers={setUsers} currentUser={user} toast={toast} />}
