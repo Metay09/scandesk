@@ -488,7 +488,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
       {/* Signature bar */}
       <div className="sig-bar">
         <Ic d={I.sig} s={14} />
-        <span>İmza: <b>{user.name}</b> ({user.username})</span>
+        <span><span style={{ color: 'var(--acc)' }}>İmza:</span> <b>{user.name}</b> ({user.username})</span>
         {autoSave && <span style={{ opacity: .7 }}>· otomatik kayıt</span>}
         {integration.active && <span style={{ marginLeft: "auto", opacity: .7, fontSize: 11 }}>→ {integration.type === "supabase" ? "Supabase" : "Sheets"}</span>}
       </div>
