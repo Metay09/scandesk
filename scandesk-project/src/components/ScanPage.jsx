@@ -107,6 +107,22 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
   useEffect(() => { scheduleFocus(); }, [scheduleFocus]);
 
+  // Auto-save when barcode length matches expected length
+  useEffect(() => {
+    if (!autoSave) return; // Auto-save must be enabled
+    if (!scanSettings.enforceBarcodeLengthMatch) return; // Length enforcement must be enabled
+    if (expectedBarcodeLength.current === null) return; // Expected length must be set
+    if (pendingBc) return; // Don't trigger if detail form is shown
+    if (addDetailAfterScan) return; // Don't trigger if detail form is configured
+
+    const trimmedBarcode = barcode.trim();
+    if (!trimmedBarcode) return; // Empty barcode
+    if (trimmedBarcode.length !== expectedBarcodeLength.current) return; // Length doesn't match
+
+    // All conditions met - auto-save the barcode
+    onBarcode(trimmedBarcode);
+  }, [barcode, autoSave, scanSettings.enforceBarcodeLengthMatch, expectedBarcodeLength, pendingBc, addDetailAfterScan]);
+
   const handleCustomerSelect = (val) => {
     setCustomer(normalizeCustomer(val));
     scheduleFocus();
