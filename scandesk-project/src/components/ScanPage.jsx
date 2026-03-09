@@ -99,7 +99,18 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
   // Admin: vardiya seçebilir; normal kullanıcı: saate göre otomatik
   const [adminShift, setAdminShift] = useState(() => getCurrentShift());
-  const currentShift = isAdmin ? adminShift : getCurrentShift();
+  const [userShift, setUserShift] = useState(() => getCurrentShift());
+
+  // Update user shift periodically for non-admin users
+  useEffect(() => {
+    if (isAdmin) return;
+    const interval = setInterval(() => {
+      setUserShift(getCurrentShift());
+    }, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, [isAdmin]);
+
+  const currentShift = isAdmin ? adminShift : userShift;
   const currentShiftDate = getShiftDate(undefined, currentShift);
 
   useEffect(() => { bulkModeRef.current = bulkMode; }, [bulkMode]);
