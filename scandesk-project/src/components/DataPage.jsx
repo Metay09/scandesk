@@ -321,7 +321,7 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
         </div>
       }
 
-      {editRec && <EditRecordModal record={editRec} fields={fields} customers={customers} canManageCustomers={isAdmin}
+      {editRec && <EditRecordModal record={editRec} fields={fields} customers={customers} canManageCustomers={true}
         onSave={r => { onEdit(r); setEditRec(null); }} onClose={() => setEditRec(null)} />}
 
       {pendingImport && (
