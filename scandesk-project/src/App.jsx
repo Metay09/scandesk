@@ -258,10 +258,45 @@ export default function App() {
     if (!recs.length) { toast("Dışa aktarılacak kayıt yok", "var(--acc)"); return; }
     const ef = fields.filter(f => f.id !== "barcode");
     const hdr = ["Barkod", ...ef.map(f => f.label), "Müşteri", "Kaydeden", "Kullanıcı Adı", "Tarih", "Saat"];
+
+    // Helper to safely get field value while preserving data types
+    const safeValue = (val) => {
+      if (val == null) return "";
+      // Preserve primitives (string, number, boolean) as-is for Excel
+      if (typeof val !== "object") return val;
+      // Convert objects/arrays to JSON string as fallback
+      return JSON.stringify(val);
+    };
+
     const data = recs.map(r => {
-      const d = new Date(r.timestamp);
-      const dateOut = deriveShiftDate(r) || d.toLocaleDateString("tr-TR");
-      return [r.barcode, ...ef.map(f => r[f.id] ?? ""), r.customer ?? "", r.scanned_by ?? "", r.scanned_by_username ?? "", dateOut, d.toLocaleTimeString("tr-TR")];
+      try {
+        const d = new Date(r.timestamp);
+        const isValidDate = !Number.isNaN(d.getTime());
+        const dateOut = deriveShiftDate(r) || (isValidDate ? d.toLocaleDateString("tr-TR") : "");
+        const timeOut = isValidDate ? d.toLocaleTimeString("tr-TR") : "";
+
+        return [
+          safeValue(r.barcode),
+          ...ef.map(f => safeValue(r[f.id])),
+          safeValue(r.customer),
+          safeValue(r.scanned_by),
+          safeValue(r.scanned_by_username),
+          dateOut,
+          timeOut
+        ];
+      } catch (err) {
+        console.error("Error processing record:", r, err);
+        // Return a row with error indicator
+        return [
+          safeValue(r.barcode),
+          ...ef.map(() => ""),
+          "",
+          "",
+          "",
+          "",
+          ""
+        ];
+      }
     });
     if (type === "xlsx") {
       try {
