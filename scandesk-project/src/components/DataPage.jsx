@@ -73,19 +73,16 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
         }).filter(Boolean);
         if (!imported.length) { toast && toast("Barkod sütunu bulunamadı", "var(--err)"); return; }
 
-        // Check for duplicates (same barcode + shift + date)
+        // Check for duplicates (barcode only)
         const duplicates = [];
         const seenMap = new Map();
         imported.forEach(rec => {
-          const recShiftDate = deriveShiftDate(rec);
-          const key = `${String(rec.barcode ?? "").trim()}|${String(rec.shift ?? "")}|${recShiftDate}`;
+          const key = String(rec.barcode ?? "").trim();
           if (seenMap.has(key)) {
             duplicates.push({ imported: rec, existing: seenMap.get(key), reason: "file" });
           } else {
             const existing = records.find(r =>
-              String(r.barcode ?? "").trim() === String(rec.barcode ?? "").trim() &&
-              String(r.shift ?? "") === String(rec.shift ?? "") &&
-              deriveShiftDate(r) === recShiftDate
+              String(r.barcode ?? "").trim() === key
             );
             if (existing) {
               duplicates.push({ imported: rec, existing, reason: "existing" });
