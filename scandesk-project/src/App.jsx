@@ -258,10 +258,43 @@ export default function App() {
     if (!recs.length) { toast("Dışa aktarılacak kayıt yok", "var(--acc)"); return; }
     const ef = fields.filter(f => f.id !== "barcode");
     const hdr = ["Barkod", ...ef.map(f => f.label), "Müşteri", "Kaydeden", "Kullanıcı Adı", "Tarih", "Saat"];
+
+    // Helper function to safely convert any value to a string for Excel
+    const sanitizeValue = (val) => {
+      if (val == null) return "";
+      if (typeof val === "object") return JSON.stringify(val);
+      return String(val);
+    };
+
     const data = recs.map(r => {
-      const d = new Date(r.timestamp);
-      const dateOut = deriveShiftDate(r) || d.toLocaleDateString("tr-TR");
-      return [r.barcode, ...ef.map(f => r[f.id] ?? ""), r.customer ?? "", r.scanned_by ?? "", r.scanned_by_username ?? "", dateOut, d.toLocaleTimeString("tr-TR")];
+      try {
+        const d = new Date(r.timestamp);
+        const isValidDate = !Number.isNaN(d.getTime());
+        const dateOut = deriveShiftDate(r) || (isValidDate ? d.toLocaleDateString("tr-TR") : "");
+        const timeOut = isValidDate ? d.toLocaleTimeString("tr-TR") : "";
+
+        return [
+          sanitizeValue(r.barcode),
+          ...ef.map(f => sanitizeValue(r[f.id])),
+          sanitizeValue(r.customer),
+          sanitizeValue(r.scanned_by),
+          sanitizeValue(r.scanned_by_username),
+          dateOut,
+          timeOut
+        ];
+      } catch (err) {
+        console.error("Error processing record:", r, err);
+        // Return a row with error indicator
+        return [
+          sanitizeValue(r.barcode),
+          ...ef.map(() => ""),
+          "",
+          "",
+          "",
+          "",
+          ""
+        ];
+      }
     });
     if (type === "xlsx") {
       try {
