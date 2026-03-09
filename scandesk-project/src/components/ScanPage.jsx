@@ -176,7 +176,6 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     doSaveCode(bc, {});
     return true;
   };
-  // Keep ref always pointing at latest onBarcode so ZXing callback avoids stale closure
   onBarcodeRef.current = onBarcode;
 
   /* ── Save ── */
