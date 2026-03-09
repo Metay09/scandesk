@@ -10,6 +10,7 @@ import CustomerPicker from "./CustomerPicker";
 import ShiftInheritModal from "./ShiftInheritModal";
 import ShiftTakeoverPrompt from "./ShiftTakeoverPrompt";
 import FieldInput from "./FieldInput";
+import CameraScannerScreen from "./CameraScannerScreen";
 
 const SCAN_FORMATS = [
   BarcodeFormat.QR_CODE,
@@ -60,6 +61,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const trackRef = useRef(null);
   const [pendingBc, setPendingBc] = useState(null);
   const [cameraLoading, setCameraLoading] = useState(false);
+  const [newCameraScreenOpen, setNewCameraScreenOpen] = useState(false);
 
   const [bulkMode, setBulkMode]   = useState(false);
   const [bulkList, setBulkList]   = useState([]);
@@ -394,6 +396,21 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   // Keep ref always pointing at latest onBarcode so ZXing callback avoids stale closure
   onBarcodeRef.current = onBarcode;
 
+  /* ── New Camera Screen Handler ── */
+  const handleNewCameraScan = useCallback((code) => {
+    // Process barcode from new camera screen
+    onBarcode(code);
+  }, []);
+
+  const openNewCameraScreen = () => {
+    setNewCameraScreenOpen(true);
+  };
+
+  const closeNewCameraScreen = () => {
+    setNewCameraScreenOpen(false);
+    scheduleFocus();
+  };
+
   /* ── Save ── */
   const doSaveCode = useCallback((code, extrasOverride) => {
     const bc = (code || "").trim();
@@ -593,9 +610,8 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
       </div>
 
       {/* Status */}
-      <div className={`status-bar ${flash === "saved" ? "s-saved" : camActive ? "s-cam" : "s-ready"}`}>
+      <div className={`status-bar ${flash === "saved" ? "s-saved" : "s-ready"}`}>
         {flash === "saved" ? <><Ic d={I.check} s={16} /> Kaydedildi!</>
-         : camActive       ? <><div className="pulse" style={{ background: "var(--inf)", color: "var(--inf)" }} /> Kamera aktif</>
          : <><div className="pulse" style={{ color: "var(--ok)" }} /> {autoSave ? "Hazır — okutun" : "Okutun, ardından Kaydet'e basın"}</>}
       </div>
 
@@ -717,7 +733,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
             />
             <button
               type="button"
-              onClick={camActive ? stopCamera : startCamera}
+              onClick={openNewCameraScreen}
               disabled={shiftExpired && !isAdmin}
               style={{
                 position: "absolute",
@@ -728,17 +744,17 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
                 height: 36,
                 borderRadius: 8,
                 border: "none",
-                background: camActive ? "var(--err)" : "var(--inf2)",
-                color: camActive ? "#fff" : "var(--inf)",
+                background: "var(--inf2)",
+                color: "var(--inf)",
                 cursor: shiftExpired && !isAdmin ? "not-allowed" : "pointer",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 opacity: shiftExpired && !isAdmin ? 0.5 : 1
               }}
-              title={camActive ? "Kamerayı Kapat" : "Kamerayı Aç"}
+              title="Kamerayı Aç"
             >
-              {camActive ? <Ic d={I.x} s={18} /> : <Ic d={I.camera} s={18} />}
+              <Ic d={I.camera} s={18} />
             </button>
           </div>
 
@@ -850,6 +866,16 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
           onCancel={handleTakeoverCancel}
         />
       )}
+
+      {/* New Camera Scanner Screen */}
+      <CameraScannerScreen
+        isOpen={newCameraScreenOpen}
+        onClose={closeNewCameraScreen}
+        onBarcodeScanned={handleNewCameraScan}
+        scanSettings={scanSettings}
+        customer={customer}
+        bulkMode={bulkMode}
+      />
     </div>
   );
 }
