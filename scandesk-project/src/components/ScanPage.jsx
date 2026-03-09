@@ -155,7 +155,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     scheduleFocus();
   }, [cleanupScanner, scheduleFocus]);
 
-  const startDecoding = useCallback(() => {
+  const startDecoding = useCallback(async () => {
     if (!videoRef.current) return;
 
     if (!readerRef.current) {
@@ -170,7 +170,10 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     scanLockRef.current = false;
 
     try {
-      reader.decodeFromVideoElementContinuously(videoRef.current, (res, err) => {
+      // Use decodeFromVideoDevice instead of decodeFromVideoElementContinuously
+      // Pass undefined as deviceId to use default/first camera device
+      // This will handle the stream internally and decode continuously
+      await reader.decodeFromVideoDevice(undefined, videoRef.current, (res, err) => {
         if (err) {
           if (!(err instanceof NotFoundException)) console.warn("ZXing decode error:", err);
           return;
@@ -215,58 +218,48 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
     setCamStatus("modal-opened");
     setCamActive(true);
-
-    try {
-      setCamStatus("requesting-camera");
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }
-      });
-      streamRef.current = stream;
-      trackRef.current = stream.getVideoTracks ? (stream.getVideoTracks()[0] || null) : null;
-      setTorchOn(false);
-      setCamStatus("stream-acquired");
-    } catch (e) {
-      console.error('Camera error:', e);
-      const msg = e?.message || e;
-      setCamStatus("error: " + msg);
-      toast("Kamera izni alınamadı: " + msg, "var(--err)");
-    }
+    // Note: Stream will be acquired by ZXing's decodeFromVideoDevice
   }, [camActive, toast]);
 
   useEffect(() => {
     if (!camActive) return;
     let cancelled = false;
 
-    const tryAttach = async () => {
+    const initCamera = async () => {
       if (cancelled) return;
       const videoEl = videoRef.current;
-      const stream = streamRef.current;
-      if (!videoEl || !stream) {
-        requestAnimationFrame(tryAttach);
+      if (!videoEl) {
+        requestAnimationFrame(initCamera);
         return;
       }
+
       try {
-        videoEl.srcObject = stream;
-        setCamStatus((prev) => prev.startsWith("error") ? prev : "video-attached");
-        await videoEl.play();
+        setCamStatus("requesting-camera");
+        // Start decoding - this will call ZXing's decodeFromVideoDevice
+        // which handles stream acquisition and video attachment
+        await startDecoding();
+
         if (cancelled) return;
-        setCamStatus((prev) => prev.startsWith("error") ? prev : "playing");
-        startDecoding();
+
+        // Extract the stream and track for torch control
+        // ZXing has attached the stream to the video element
+        const stream = videoEl.srcObject;
+        if (stream) {
+          streamRef.current = stream;
+          trackRef.current = stream.getVideoTracks ? (stream.getVideoTracks()[0] || null) : null;
+          setTorchOn(false);
+          setCamStatus("playing");
+        }
       } catch (err) {
         if (cancelled) return;
-        console.error("Video play error:", err);
+        console.error("Camera initialization error:", err);
         const msg = err?.message || err;
         setCamStatus("error: " + msg);
-        toast("Kamera akışı başlatılamadı: " + msg, "var(--err)");
+        toast("Kamera başlatılamadı: " + msg, "var(--err)");
       }
     };
 
-    tryAttach();
+    initCamera();
     return () => { cancelled = true; };
   }, [camActive, startDecoding, toast]);
 
