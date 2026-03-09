@@ -1,6 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { BrowserMultiFormatReader } from "@zxing/browser";
-import { BarcodeFormat, DecodeHintType, NotFoundException } from "@zxing/library";
 import { Ic, I } from "./Icon";
 import { genId } from "../constants";
 import { fmtDate, fmtTime, nowTs, playBeep, getCurrentShift, FIXED_SHIFTS, getCustomerList, getShiftDate, deriveShiftDate } from "../utils";
@@ -10,33 +8,11 @@ import CustomerPicker from "./CustomerPicker";
 import ShiftInheritModal from "./ShiftInheritModal";
 import ShiftTakeoverPrompt from "./ShiftTakeoverPrompt";
 import FieldInput from "./FieldInput";
-import CameraScannerScreen from "./CameraScannerScreen";
-
-const SCAN_FORMATS = [
-  BarcodeFormat.QR_CODE,
-  BarcodeFormat.DATA_MATRIX,
-  BarcodeFormat.PDF_417,
-  BarcodeFormat.AZTEC,
-  BarcodeFormat.CODE_128,
-  BarcodeFormat.CODE_39,
-  BarcodeFormat.EAN_13,
-  BarcodeFormat.EAN_8,
-  BarcodeFormat.UPC_A,
-  BarcodeFormat.UPC_E,
-  BarcodeFormat.ITF,
-  BarcodeFormat.CODABAR,
-];
 
 export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdmin, user, integration, scanSettings, toast, shiftExpired = false, shiftTakeovers = {}, onShiftTakeover }) {
   const customerList = getCustomerList(customers);
   const normalizeCustomer = (val) => val === "-Boş-" ? "" : val;
   const inputRef  = useRef(null);
-  const videoRef  = useRef(null);
-  const streamRef = useRef(null);
-  const readerRef = useRef(null);
-  const scanLockRef = useRef(false);
-  const lockTimerRef = useRef(null);
-  const lastScanRef = useRef({ value: null, ts: 0 });
   const focusTimer = useRef(null);
   const bulkModeRef = useRef(false);
   const addDetailAfterScanRef = useRef(false);
@@ -53,15 +29,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
       return "";
     }
   });
-  const [camActive, setCamActive] = useState(false);
-  const [camStatus, setCamStatus] = useState("idle");
-  const camActiveRef = useRef(false);
-  const [torchOn, setTorchOn] = useState(false);
-  const [scanPulse, setScanPulse] = useState(false);
-  const trackRef = useRef(null);
   const [pendingBc, setPendingBc] = useState(null);
-  const [cameraLoading, setCameraLoading] = useState(false);
-  const [newCameraScreenOpen, setNewCameraScreenOpen] = useState(false);
 
   const [bulkMode, setBulkMode]   = useState(false);
   const [bulkList, setBulkList]   = useState([]);
@@ -118,7 +86,6 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
   useEffect(() => { bulkModeRef.current = bulkMode; }, [bulkMode]);
   useEffect(() => { addDetailAfterScanRef.current = addDetailAfterScan; }, [addDetailAfterScan]);
-  useEffect(() => { camActiveRef.current = camActive; }, [camActive]);
 
   // Persist customer selection to localStorage
   useEffect(() => {
@@ -132,7 +99,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const scheduleFocus = useCallback(() => {
     clearTimeout(focusTimer.current);
     focusTimer.current = setTimeout(() => {
-      if (!camActiveRef.current && inputRef.current && document.activeElement !== inputRef.current) {
+      if (inputRef.current && document.activeElement !== inputRef.current) {
         inputRef.current.focus({ preventScroll: true });
       }
     }, 120);
@@ -140,194 +107,26 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
   useEffect(() => { scheduleFocus(); }, [scheduleFocus]);
 
+  // Auto-save when barcode length matches expected length
+  useEffect(() => {
+    if (!autoSave) return; // Auto-save must be enabled
+    if (!scanSettings.enforceBarcodeLengthMatch) return; // Length enforcement must be enabled
+    if (expectedBarcodeLength.current === null) return; // Expected length must be set
+    if (pendingBc) return; // Don't trigger if detail form is shown
+    if (addDetailAfterScan) return; // Don't trigger if detail form is configured
+
+    const trimmedBarcode = barcode.trim();
+    if (!trimmedBarcode) return; // Empty barcode
+    if (trimmedBarcode.length !== expectedBarcodeLength.current) return; // Length doesn't match
+
+    // All conditions met - auto-save the barcode
+    onBarcode(trimmedBarcode);
+  }, [barcode, autoSave, scanSettings.enforceBarcodeLengthMatch, expectedBarcodeLength, pendingBc, addDetailAfterScan]);
+
   const handleCustomerSelect = (val) => {
     setCustomer(normalizeCustomer(val));
     scheduleFocus();
   };
-
-  /* ── Camera ── */
-  const cleanupScanner = useCallback(() => {
-    try { readerRef.current?.reset(); } catch (err) { console.warn("ZXing reset error:", err); }
-    readerRef.current = null;
-    scanLockRef.current = false;
-    clearTimeout(lockTimerRef.current);
-    lockTimerRef.current = null;
-  }, []);
-
-  const stopCamera = useCallback(() => {
-    streamRef.current?.getTracks()?.forEach(t => t.stop());
-    streamRef.current = null;
-    if (videoRef.current) {
-      try { videoRef.current.pause?.(); } catch {}
-      videoRef.current.srcObject = null;
-    }
-    setTorchOn(false);
-    trackRef.current = null;
-    setCamActive(false);
-    setCamStatus("idle");
-    setCameraLoading(false);
-    cleanupScanner();
-    scheduleFocus();
-  }, [cleanupScanner, scheduleFocus]);
-
-  const startDecoding = useCallback(async () => {
-    if (!videoRef.current) return;
-
-    if (!readerRef.current) {
-      const hints = new Map();
-      hints.set(DecodeHintType.POSSIBLE_FORMATS, SCAN_FORMATS);
-      hints.set(DecodeHintType.TRY_HARDER, true);
-      readerRef.current = new BrowserMultiFormatReader(hints);
-    }
-
-    const reader = readerRef.current;
-    const cooldown = scanSettings.scanDebounceMs || 800;
-    // Optimize decode interval for better performance
-    // Lower values = faster scanning but more CPU usage
-    const decodeInterval = Math.max(100, Math.min(scanSettings.scanDebounceMs || 120, 150));
-    scanLockRef.current = false;
-
-    try {
-      // Request camera with optimal constraints for barcode scanning
-      const constraints = {
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1920, max: 1920 },
-          height: { ideal: 1080, max: 1080 },
-          focusMode: { ideal: "continuous" },
-          // Enable autofocus for better barcode detection
-          advanced: [{ focusMode: "continuous" }]
-        }
-      };
-
-      // Use decodeFromVideoDevice with optimal constraints
-      // Pass undefined as deviceId to use default/first camera device
-      // This will handle the stream internally and decode continuously
-      await reader.decodeFromVideoDevice(undefined, videoRef.current, (res, err) => {
-        if (err) {
-          if (!(err instanceof NotFoundException)) console.warn("ZXing decode error:", err);
-          return;
-        }
-        if (!res) return;
-
-        const code = res.getText?.() || "";
-        if (!code) return;
-
-        const now = Date.now();
-        const lastTs = lastScanRef.current?.ts || 0;
-        if (scanLockRef.current && (now - lastTs) < cooldown) return;
-        scanLockRef.current = true;
-        lastScanRef.current = { value: code, ts: now };
-        clearTimeout(lockTimerRef.current);
-        lockTimerRef.current = setTimeout(() => { scanLockRef.current = false; }, Math.max(cooldown, 350));
-
-        // Visual feedback: green frame flash
-        setScanPulse(true);
-        setTimeout(() => setScanPulse(false), 220);
-
-        // Haptic feedback: vibration (controlled by settings)
-        if (vibration && navigator.vibrate) {
-          navigator.vibrate([25, 15, 25]); // Short success vibration
-        }
-
-        // Audio feedback: beep (controlled by settings)
-        if (beep) {
-          playBeep();
-        }
-
-        if (addDetailAfterScanRef.current) {
-          setPendingBc(code);
-          setBarcode(code);
-        } else {
-          onBarcodeRef.current?.(code);
-        }
-      });
-    } catch (err) {
-      console.error("ZXing start error:", err);
-      toast("Kamera başlatılırken hata oluştu: " + (err?.message || err), "var(--err)");
-      stopCamera();
-    }
-  }, [scanSettings, stopCamera, toast, vibration, beep]);
-
-  const startCamera = useCallback(async () => {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      toast("Bu tarayıcı kamera erişimini desteklemiyor.", "var(--err)");
-      setCamStatus("error: unsupported");
-      return;
-    }
-    if (camActive) return;
-
-    setCameraLoading(true);
-    setCamStatus("modal-opened");
-    setCamActive(true);
-    // Note: Stream will be acquired by ZXing's decodeFromVideoDevice
-  }, [camActive, toast]);
-
-  useEffect(() => {
-    if (!camActive) return;
-    let cancelled = false;
-
-    const initCamera = async () => {
-      if (cancelled) return;
-      const videoEl = videoRef.current;
-      if (!videoEl) {
-        requestAnimationFrame(initCamera);
-        return;
-      }
-
-      try {
-        setCamStatus("requesting-camera");
-        // Start decoding - this will call ZXing's decodeFromVideoDevice
-        // which handles stream acquisition and video attachment
-        await startDecoding();
-
-        if (cancelled) return;
-
-        // Extract the stream and track for torch control
-        // ZXing has attached the stream to the video element
-        const stream = videoEl.srcObject;
-        if (stream) {
-          streamRef.current = stream;
-          trackRef.current = stream.getVideoTracks ? (stream.getVideoTracks()[0] || null) : null;
-          setTorchOn(false);
-          setCamStatus("playing");
-          setCameraLoading(false);
-        }
-      } catch (err) {
-        if (cancelled) return;
-        console.error("Camera initialization error:", err);
-        const msg = err?.message || err;
-        setCamStatus("error: " + msg);
-        setCameraLoading(false);
-        toast("Kamera başlatılamadı: " + msg, "var(--err)");
-      }
-    };
-
-    initCamera();
-    return () => { cancelled = true; };
-  }, [camActive, startDecoding, toast]);
-
-  const toggleTorch = async () => {
-    try {
-      const track = trackRef.current;
-      if (!track) return toast('Flash desteklenmiyor', 'var(--mut)');
-      const caps = track.getCapabilities ? track.getCapabilities() : {};
-      if (!caps.torch) return toast('Flash desteklenmiyor', 'var(--mut)');
-      const next = !torchOn;
-      await track.applyConstraints({ advanced: [{ torch: next }] });
-      setTorchOn(next);
-    } catch (e) {
-      toast('Flash açılamadı: ' + (e?.message || e), 'var(--err)');
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      stopCamera();
-      clearTimeout(focusTimer.current);
-      clearTimeout(lockTimerRef.current);
-    };
-  }, [stopCamera]);
 
   /* ── Helpers ── */
   const normalizeCode = (c) => String(c ?? "").trim();
@@ -393,23 +192,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     doSaveCode(bc, {});
     return true;
   };
-  // Keep ref always pointing at latest onBarcode so ZXing callback avoids stale closure
   onBarcodeRef.current = onBarcode;
-
-  /* ── New Camera Screen Handler ── */
-  const handleNewCameraScan = useCallback((code) => {
-    // Process barcode from new camera screen
-    onBarcode(code);
-  }, []);
-
-  const openNewCameraScreen = () => {
-    setNewCameraScreenOpen(true);
-  };
-
-  const closeNewCameraScreen = () => {
-    setNewCameraScreenOpen(false);
-    scheduleFocus();
-  };
 
   /* ── Save ── */
   const doSaveCode = useCallback((code, extrasOverride) => {
@@ -547,9 +330,6 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     }
   };
 
-  // BUG FIX: derive torchSupported from track capabilities
-  const torchSupported = !!trackRef.current?.getCapabilities?.()?.torch;
-
   return (
     <div className="page">
       {/* Vardiya Bilgisi — admin seçebilir, kullanıcı sadece görür */}
@@ -615,85 +395,6 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
          : <><div className="pulse" style={{ color: "var(--ok)" }} /> {autoSave ? "Hazır — okutun" : "Okutun, ardından Kaydet'e basın"}</>}
       </div>
 
-      {/* Camera */}
-      {camActive && (
-        <div className="overlay cam-overlay-shell">
-          <div className="cam-modal">
-            <div className="cam-box cam-full">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="cam-video"
-                style={{ minHeight: "55vh" }}
-              />
-
-              <div className="cam-topbar">
-                <div className="cam-top-left">
-                  <div className="cam-pill">{customer || "(Boş)"}</div>
-                  {bulkMode ? <div className="cam-pill cam-pill-info">Toplu Mod</div> : <div className="cam-pill">Tekli</div>}
-                </div>
-                <div className="cam-top-right">
-                  {torchSupported && (
-                    <button
-                      type="button"
-                      className="cam-ic"
-                      onClick={() => toggleTorch()}
-                      title="Flaş"
-                      style={{ background: torchOn ? 'rgba(255,220,0,.75)' : 'rgba(0,0,0,.55)' }}
-                    >
-                      <Ic d={I.zap} s={16} />
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="cam-ic cam-close-btn"
-                    onClick={stopCamera}
-                    title="Kapat"
-                  >
-                    <Ic d={I.x} s={20} />
-                  </button>
-                </div>
-              </div>
-
-              <div className="cam-overlay">
-                {cameraLoading && (
-                  <div style={{
-                    position: "absolute",
-                    top: "50%",
-                    left: "50%",
-                    transform: "translate(-50%, -50%)",
-                    background: "rgba(0, 0, 0, 0.8)",
-                    color: "#fff",
-                    padding: "16px 24px",
-                    borderRadius: "12px",
-                    fontSize: "16px",
-                    fontWeight: 600,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "12px",
-                    zIndex: 1000
-                  }}>
-                    <div className="pulse" style={{ background: "var(--inf)", color: "var(--inf)" }} />
-                    Kamera açılıyor...
-                  </div>
-                )}
-                <div
-                  className={`cam-frame ${scanPulse ? "cam-frame-success" : ""} ${scanSettings.scanBoxShape === "rect" ? "rect" : "square"}`}
-                  style={{
-                    width: `${Math.round((scanSettings.scanBoxSize || 0.72) * 100)}%`,
-                    aspectRatio: scanSettings.scanBoxShape === "rect" ? "16 / 9" : "1 / 1",
-                  }}
-                >
-                  <div className="cam-line" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Detail form */}
       {pendingBc && addDetailAfterScan ? (
         <div className="detail-form">
@@ -731,31 +432,6 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
               autoComplete="off" autoCorrect="off"
               autoCapitalize="none" spellCheck={false} inputMode="text"
             />
-            <button
-              type="button"
-              onClick={openNewCameraScreen}
-              disabled={shiftExpired && !isAdmin}
-              style={{
-                position: "absolute",
-                right: 8,
-                top: "50%",
-                transform: "translateY(-50%)",
-                width: 36,
-                height: 36,
-                borderRadius: 8,
-                border: "none",
-                background: "var(--inf2)",
-                color: "var(--inf)",
-                cursor: shiftExpired && !isAdmin ? "not-allowed" : "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                opacity: shiftExpired && !isAdmin ? 0.5 : 1
-              }}
-              title="Kamerayı Aç"
-            >
-              <Ic d={I.camera} s={18} />
-            </button>
           </div>
 
           {/* Toplu Mod */}
@@ -866,17 +542,6 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
           onCancel={handleTakeoverCancel}
         />
       )}
-
-      {/* New Camera Scanner Screen */}
-      <CameraScannerScreen
-        isOpen={newCameraScreenOpen}
-        onClose={closeNewCameraScreen}
-        onBarcodeScanned={handleNewCameraScan}
-        scanSettings={scanSettings}
-        customer={customer}
-        bulkMode={bulkMode}
-        closeOnScan={!bulkMode}
-      />
     </div>
   );
 }
