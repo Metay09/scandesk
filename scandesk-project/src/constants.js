@@ -14,6 +14,7 @@ export const INITIAL_SETTINGS = {
   allowEditField: true,
   allowDeleteField: true,
   recentLimit: 10,
+  scanDebounceMs: 800,
   enforceBarcodeLengthMatch: false,
 };
 
