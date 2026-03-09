@@ -155,7 +155,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
     const now = Date.now();
     const last = recentRef.current.get(bc);
-    if (last && (now - last) < (scanSettings.scanDebounceMs || 800)) return { ok:false, msg:"⚠ Çift okuma engellendi" };
+    if (last && (now - last) < 800) return { ok:false, msg:"⚠ Çift okuma engellendi" };
     recentRef.current.set(bc, now);
     if (findExistingRec(bc)) return { ok:false, msg:"⚠ Bu barkod bu vardiyada zaten var", dup:true };
     if (bulkMode && bulkList.some(x => x.code === bc)) return { ok:false, msg:"⚠ Bu kod zaten listede" };
