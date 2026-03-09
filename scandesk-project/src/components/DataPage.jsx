@@ -190,18 +190,23 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
   return (
     <div className="page">
 
-      {settings.allowExport && (
+      {/* Export/Import buttons in one row - all same size */}
+      {(settings.allowExport || settings.allowImport) && (
         <div className="export-row">
-          <button className="btn btn-ok btn-full" onClick={() => onExport("xlsx")}><Ic d={I.xlsx} s={15} /> Excel</button>
-          <button className="btn btn-ghost btn-full" onClick={() => onExport("csv")}><Ic d={I.csv} s={15} /> CSV</button>
-        </div>
-      )}
-      {settings.allowImport && (
-        <div className="export-row">
-          <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} onChange={handleImportFile} />
-          <button className="btn btn-ghost btn-full btn-sm" onClick={() => importRef.current?.click()}>
-            <Ic d={I.upload} s={15} /> Excel / CSV İçe Aktar
-          </button>
+          {settings.allowExport && (
+            <>
+              <button className="btn btn-ok btn-full" onClick={() => onExport("xlsx")}><Ic d={I.xlsx} s={15} /> Excel</button>
+              <button className="btn btn-ghost btn-full" onClick={() => onExport("csv")}><Ic d={I.csv} s={15} /> CSV</button>
+            </>
+          )}
+          {settings.allowImport && (
+            <>
+              <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} onChange={handleImportFile} />
+              <button className="btn btn-ghost btn-full" onClick={() => importRef.current?.click()}>
+                <Ic d={I.upload} s={15} /> İçe Aktar
+              </button>
+            </>
+          )}
         </div>
       )}
       {sel.size > 0 && (
@@ -219,66 +224,57 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
 
 
       <div style={{ marginBottom: 10 }}>
+        {/* Search box - standalone, wider */}
+        <div className="srch" style={{ width: "100%", marginBottom: 8 }}>
+          <span className="srch-ico"><Ic d={I.search} s={16} /></span>
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Ara..." />
+        </div>
+
+        {/* Filter dropdowns - labels inside as first option */}
         <div
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
             gap: 8,
-            marginBottom: 6,
-            alignItems: "end"
+            marginBottom: 6
           }}
         >
-          <div className="srch" style={{ width: "100%" }}>
-            <span className="srch-ico"><Ic d={I.search} s={16} /></span>
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Ara..." />
-          </div>
-          <div>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx2)", marginBottom: 4 }}>Tarih</label>
-            <input
-              type="date"
-              value={dateFilter}
-              onChange={e => setDateFilter(e.target.value)}
-              style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12 }}
-            />
-          </div>
+          <input
+            type="date"
+            value={dateFilter}
+            onChange={e => setDateFilter(e.target.value)}
+            placeholder="Tarih"
+            style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: dateFilter ? "var(--tx)" : "var(--tx2)", border: "1.5px solid var(--brd)", fontSize: 12 }}
+          />
           {isAdmin && allShifts.length > 0 && (
-            <div>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx2)", marginBottom: 4 }}>Vardiya</label>
-              <select
-                value={shiftFilter}
-                onChange={e => setShiftFilter(e.target.value)}
-                style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: 600 }}
-              >
-                <option value="all">Tümü</option>
-                {allShifts.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
+            <select
+              value={shiftFilter}
+              onChange={e => setShiftFilter(e.target.value)}
+              style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: shiftFilter === "all" ? "var(--tx2)" : "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: shiftFilter === "all" ? 400 : 600 }}
+            >
+              <option value="all">Vardiya</option>
+              {allShifts.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
           )}
           {allUsers.length > 0 && (
-            <div>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx2)", marginBottom: 4 }}>Kullanıcı</label>
-              <select
-                value={userFilter}
-                onChange={e => setUserFilter(e.target.value)}
-                style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: 600 }}
-              >
-                <option value="all">Tümü</option>
-                {allUsers.map(u => <option key={u} value={u}>{u}</option>)}
-              </select>
-            </div>
+            <select
+              value={userFilter}
+              onChange={e => setUserFilter(e.target.value)}
+              style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: userFilter === "all" ? "var(--tx2)" : "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: userFilter === "all" ? 400 : 600 }}
+            >
+              <option value="all">Kullanıcı</option>
+              {allUsers.map(u => <option key={u} value={u}>{u}</option>)}
+            </select>
           )}
           {allCustomers.length > 0 && (
-            <div>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx2)", marginBottom: 4 }}>Müşteri</label>
-              <select
-                value={customerFilter}
-                onChange={e => setCustomerFilter(e.target.value)}
-                style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: 600 }}
-              >
-                <option value="all">Tümü</option>
-                {allCustomers.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
+            <select
+              value={customerFilter}
+              onChange={e => setCustomerFilter(e.target.value)}
+              style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: customerFilter === "all" ? "var(--tx2)" : "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: customerFilter === "all" ? 400 : 600 }}
+            >
+              <option value="all">Müşteri</option>
+              {allCustomers.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
           )}
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>

@@ -73,53 +73,50 @@ export default function ReportPage({ records, fields, isAdmin, currentShift }) {
 
   return (
     <div className="page">
-      {/* Advanced filtering */}
+      {/* Advanced filtering - labels inside inputs/selects */}
       <div style={{ marginBottom: 14 }}>
         <div style={{ display: "flex", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 140px", minWidth: 120 }}>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx2)", marginBottom: 4 }}>Tarih</label>
             <input
               type="date"
               value={dateFilter}
               onChange={e => setDateFilter(e.target.value)}
-              style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12 }}
+              placeholder="Tarih"
+              style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: dateFilter ? "var(--tx)" : "var(--tx2)", border: "1.5px solid var(--brd)", fontSize: 12 }}
             />
           </div>
           {isAdmin && allShifts.length > 0 && (
             <div style={{ flex: "1 1 140px", minWidth: 120 }}>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx2)", marginBottom: 4 }}>Vardiya</label>
               <select
                 value={shiftFilter}
                 onChange={e => setShiftFilter(e.target.value)}
-                style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: 600 }}
+                style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: shiftFilter === "all" ? "var(--tx2)" : "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: shiftFilter === "all" ? 400 : 600 }}
               >
-                <option value="all">Tümü</option>
+                <option value="all">Vardiya</option>
                 {allShifts.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
           )}
           {allCustomers.length > 0 && (
             <div style={{ flex: "1 1 140px", minWidth: 120 }}>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx2)", marginBottom: 4 }}>Müşteri</label>
               <select
                 value={customerFilter}
                 onChange={e => setCustomerFilter(e.target.value)}
-                style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: 600 }}
+                style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: customerFilter === "all" ? "var(--tx2)" : "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: customerFilter === "all" ? 400 : 600 }}
               >
-                <option value="all">Tümü</option>
+                <option value="all">Müşteri</option>
                 {allCustomers.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
           )}
           {allUsers.length > 0 && (
             <div style={{ flex: "1 1 140px", minWidth: 120 }}>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx2)", marginBottom: 4 }}>Kullanıcı</label>
               <select
                 value={userFilter}
                 onChange={e => setUserFilter(e.target.value)}
-                style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: 600 }}
+                style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: userFilter === "all" ? "var(--tx2)" : "var(--tx)", border: "1.5px solid var(--brd)", fontSize: 12, fontWeight: userFilter === "all" ? 400 : 600 }}
               >
-                <option value="all">Tümü</option>
+                <option value="all">Kullanıcı</option>
                 {allUsers.map(u => <option key={u} value={u}>{u}</option>)}
               </select>
             </div>

@@ -68,12 +68,22 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
             <div style={{ fontSize: 12, color: "var(--tx2)" }}>Tarih/Saat aralığı seçin. Seçilen aralıktaki kayıtlar silinir.</div>
             <div style={{ display: "flex", gap: 8 }}>
               <div style={{ flex: 1 }}>
-                <label className="lbl">Başlangıç</label>
-                <input type="datetime-local" value={rangeStart} onChange={e => setRangeStart(e.target.value)} />
+                <input
+                  type="datetime-local"
+                  value={rangeStart}
+                  onChange={e => setRangeStart(e.target.value)}
+                  placeholder="Başlangıç"
+                  style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: rangeStart ? "var(--tx)" : "var(--tx2)", border: "1.5px solid var(--brd)", fontSize: 12 }}
+                />
               </div>
               <div style={{ flex: 1 }}>
-                <label className="lbl">Bitiş</label>
-                <input type="datetime-local" value={rangeEnd} onChange={e => setRangeEnd(e.target.value)} />
+                <input
+                  type="datetime-local"
+                  value={rangeEnd}
+                  onChange={e => setRangeEnd(e.target.value)}
+                  placeholder="Bitiş"
+                  style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: rangeEnd ? "var(--tx)" : "var(--tx2)", border: "1.5px solid var(--brd)", fontSize: 12 }}
+                />
               </div>
             </div>
             <button className="btn btn-danger" disabled={!rangeStart || !rangeEnd} onClick={() => {
