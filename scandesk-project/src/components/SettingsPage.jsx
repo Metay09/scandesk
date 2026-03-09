@@ -41,7 +41,7 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
             <option value="0">Full</option>
           </select>
         </Row>
-        <Row icon={I.qr} label="Okutma Hızı" sub="Aynı barkodu art arda okumayı geciktirir">
+        <Row icon={I.qr} label="Tarama Hızı" sub="Aynı barkodu art arda okumayı geciktirir">
           <select value={String(settings.scanDebounceMs || 800)} onChange={e => set('scanDebounceMs', Number(e.target.value) || 800)} style={{ height: 34, borderRadius: 10, padding: '0 10px', background: 'var(--s2)', color: 'var(--tx)', border: '1.5px solid var(--brd)' }}>
             <option value="300">Hızlı (300ms)</option>
             <option value="500">500ms</option>
