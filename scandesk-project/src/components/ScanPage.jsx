@@ -3,7 +3,7 @@ import { BrowserMultiFormatReader } from "@zxing/browser";
 import { BarcodeFormat, DecodeHintType, NotFoundException } from "@zxing/library";
 import { Ic, I } from "./Icon";
 import { genId } from "../constants";
-import { fmtDate, fmtTime, nowTs, playBeep, getCurrentShift, FIXED_SHIFTS, getCustomerList } from "../utils";
+import { fmtDate, fmtTime, nowTs, playBeep, getCurrentShift, FIXED_SHIFTS, getCustomerList, getShiftDate, deriveShiftDate } from "../utils";
 import { supabaseInsert, sheetsInsert } from "../services/integrations";
 import EditRecordModal from "./EditRecordModal";
 import CustomerPicker from "./CustomerPicker";
@@ -29,7 +29,6 @@ const SCAN_FORMATS = [
 export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdmin, user, integration, scanSettings, toast, shiftExpired = false, shiftTakeovers = {}, onShiftTakeover }) {
   const customerList = getCustomerList(customers);
   const normalizeCustomer = (val) => val === "-Boş-" ? "" : val;
-  const today = fmtDate();
   const inputRef  = useRef(null);
   const videoRef  = useRef(null);
   const streamRef = useRef(null);
@@ -77,7 +76,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     if (takeoverChecked.current || isAdmin) return;
     takeoverChecked.current = true;
     const loginShift = getCurrentShift();
-    const loginDate = fmtDate();
+    const loginDate = getShiftDate(undefined, loginShift);
     const key = `${loginDate}_${loginShift}`;
     if (!(shiftTakeovers || {})[key]) {
       setShowTakeoverPrompt(true);
@@ -86,7 +85,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
   const handleTakeoverAccept = () => {
     const loginShift = getCurrentShift();
-    const loginDate = fmtDate();
+    const loginDate = getShiftDate(undefined, loginShift);
     onShiftTakeover?.(loginShift, loginDate);
     setShowTakeoverPrompt(false);
     setInheritModal(true);
@@ -101,6 +100,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   // Admin: vardiya seçebilir; normal kullanıcı: saate göre otomatik
   const [adminShift, setAdminShift] = useState(() => getCurrentShift());
   const currentShift = isAdmin ? adminShift : getCurrentShift();
+  const currentShiftDate = getShiftDate(undefined, currentShift);
 
   useEffect(() => { bulkModeRef.current = bulkMode; }, [bulkMode]);
   useEffect(() => { addDetailAfterScanRef.current = addDetailAfterScan; }, [addDetailAfterScan]);
@@ -297,8 +297,8 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const findExistingRec = (bc) => (records || []).find(r => {
     const rBc = String(r.barcode ?? "").trim();
     const rShift = String(r.shift ?? "");
-    const rDate = fmtDate(r.timestamp || r.date || "");
-    return rBc === bc && rShift === String(currentShift ?? "") && rDate === today;
+    const rDate = deriveShiftDate(r);
+    return rBc === bc && rShift === String(currentShift ?? "") && rDate === currentShiftDate;
   });
   const canAcceptCode = (bc) => {
     if (!bc) return { ok:false, msg:null };
@@ -382,10 +382,11 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     const dateStr = fmtDate(now);
     // Admin: seçilen vardiyayı kullan; normal kullanıcı: saate göre otomatik
     const shift = isAdmin ? adminShift : getCurrentShift();
+    const shiftDate = getShiftDate(now, shift);
     const row = {
       id: genId(), timestamp: now.toISOString(), date: dateStr, time: fmtTime(now),
       barcode: bc, customer: customer || "",
-      shift,
+      shift, shiftDate,
       inheritedFromShift: "",
       scanned_by: user.name, scanned_by_username: user.username, synced: false,
     };
@@ -416,21 +417,21 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   }, [pendingBc, barcode, extras, doSaveCode]);
 
   const copyFromShift = useCallback((sourceShift, selectedIds) => {
-    const todayStr = fmtDate();
-    // Admin: seçilen vardiyaya kopyalar; normal kullanıcı: saate göre otomatik
     const targetShift = isAdmin ? adminShift : getCurrentShift();
+    const todayStr = getShiftDate(undefined, targetShift);
+    // Admin: seçilen vardiyaya kopyalar; normal kullanıcı: saate göre otomatik
     const selectedSet = new Set(selectedIds);
     const currentBarcodes = new Set(
-      (records || []).filter(r => r.shift === targetShift && r.date === todayStr).map(r => r.barcode)
+      (records || []).filter(r => r.shift === targetShift && deriveShiftDate(r) === todayStr).map(r => r.barcode)
     );
     const toCopy = (records || []).filter(r =>
       r.shift === sourceShift &&
-      r.date === todayStr &&
+      deriveShiftDate(r) === todayStr &&
       selectedSet.has(r.id) &&
       !currentBarcodes.has(r.barcode)
     );
     const now = new Date();
-    const copyDateStr = fmtDate(now);
+    const copyDateStr = getShiftDate(now, targetShift);
     toCopy.forEach(r => {
       onSave({
         ...r,
@@ -439,6 +440,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
         date: copyDateStr,
         time: fmtTime(now),
         shift: targetShift,
+        shiftDate: copyDateStr,
         inheritedFromShift: sourceShift,
         synced: false,
       });
@@ -527,7 +529,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
           border: "1.5px solid var(--brd)",
           borderRadius: 8,
           padding: "4px 10px"
-        }}>{fmtDate(nowTs())}</span>
+        }}>{currentShiftDate}</span>
         <span style={{ color: "var(--tx3)", fontFamily: "var(--mono)", fontSize: 11 }}>{fmtTime()}</span>
       </div>
 
@@ -754,8 +756,8 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
         <div style={{ fontSize: 12, color: 'var(--tx2)', fontWeight: 800, marginBottom: 6 }}>Son Okutmalar</div>
 
         {(() => {
-          const todayNow = fmtDate(nowTs());
-          const all = (records || []).filter(r => r.shift === currentShift && r.date === todayNow).slice().sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+          const todayShift = currentShiftDate;
+          const all = (records || []).filter(r => r.shift === currentShift && deriveShiftDate(r) === todayShift).slice().sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
           const lim = scanSettings.recentLimit;
           const view = (lim === 0 || lim === "0" || lim === "full") ? all : all.slice(0, Number(lim || 10));
           return (

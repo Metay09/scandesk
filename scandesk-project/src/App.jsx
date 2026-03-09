@@ -7,7 +7,7 @@ import * as XLSX from "xlsx";
 import "./index.css";
 import { INITIAL_USERS, INITIAL_SETTINGS, INITIAL_FIELDS, DEFAULT_CUSTS } from "./constants";
 import { isNative, loadState, saveState } from "./services/storage";
-import { getCurrentShift, pad2 } from "./utils";
+import { getCurrentShift, pad2, deriveShiftDate, getShiftDate } from "./utils";
 import { useToast } from "./hooks/useToast";
 import { Ic, I } from "./components/Icon";
 import Login from "./components/Login";
@@ -42,6 +42,16 @@ export default function App() {
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const backPressCountRef = useRef(0);
   const backPressTimerRef = useRef(null);
+
+  const addShiftDate = useCallback((rec) => {
+    if (!rec) return rec;
+    const shiftDate = deriveShiftDate(rec);
+    return shiftDate ? { ...rec, shiftDate } : { ...rec };
+  }, []);
+
+  const normalizeRecords = useCallback((list) => {
+    return Array.isArray(list) ? list.map(addShiftDate) : [];
+  }, [addShiftDate]);
 
   // Apply theme to document
   useEffect(() => {
@@ -117,8 +127,8 @@ export default function App() {
       if (st && typeof st === "object") {
         if (Array.isArray(st.users) && st.users.length) setUsers(st.users);
         if (Array.isArray(st.fields) && st.fields.length) setFields(st.fields);
-        if (Array.isArray(st.records)) setRecords(st.records);
-        if (st.lastSaved) setLastSaved(st.lastSaved);
+        if (Array.isArray(st.records)) setRecords(normalizeRecords(st.records));
+        if (st.lastSaved) setLastSaved(addShiftDate(st.lastSaved));
         if (Array.isArray(st.custList) && st.custList.length) setCustList(st.custList);
         if (st.settings) {
           setSettings(st.settings);
@@ -133,7 +143,7 @@ export default function App() {
       });
       setHydrated(true);
     })();
-  }, []);
+  }, [addShiftDate, normalizeRecords]);
 
   // Persist on changes
   useEffect(() => {
@@ -192,9 +202,17 @@ export default function App() {
     return () => clearTimeout(id);
   }, [graceSecsLeft, user, handleLogout]);
 
-  const handleSave   = useCallback(r => { setRecords(p => [r, ...p]); setLastSaved(r); }, []);
+  const handleSave   = useCallback(r => {
+    const rec = addShiftDate(r);
+    setRecords(p => [rec, ...p]);
+    setLastSaved(rec);
+  }, [addShiftDate]);
   const handleDelete = id => { setRecords(p => p.filter(r => r.id !== id)); setLastSaved(p => (p && p.id === id ? null : p)); toast("Kayıt silindi", "var(--err)"); };
-  const handleEdit   = r  => { setRecords(p => p.map(x => x.id === r.id ? r : x)); toast("Güncellendi", "var(--inf)"); };
+  const handleEdit   = r  => {
+    const rec = addShiftDate(r);
+    setRecords(p => p.map(x => x.id === rec.id ? rec : x));
+    toast("Güncellendi", "var(--inf)");
+  };
   const handleClear  = () => {
     if (window.confirm("Tüm kayıtlar silinecek. Onaylıyor musunuz?")) {
       setRecords([]); setLastSaved(null); toast("Tüm veriler temizlendi", "var(--err)");
@@ -215,7 +233,8 @@ export default function App() {
     const hdr = ["Barkod", ...ef.map(f => f.label), "Müşteri", "Kaydeden", "Kullanıcı Adı", "Tarih", "Saat"];
     const data = recs.map(r => {
       const d = new Date(r.timestamp);
-      return [r.barcode, ...ef.map(f => r[f.id] ?? ""), r.customer ?? "", r.scanned_by ?? "", r.scanned_by_username ?? "", d.toLocaleDateString("tr-TR"), d.toLocaleTimeString("tr-TR")];
+      const dateOut = deriveShiftDate(r) || d.toLocaleDateString("tr-TR");
+      return [r.barcode, ...ef.map(f => r[f.id] ?? ""), r.customer ?? "", r.scanned_by ?? "", r.scanned_by_username ?? "", dateOut, d.toLocaleTimeString("tr-TR")];
     });
     if (type === "xlsx") {
       const ws = XLSX.utils.aoa_to_sheet([hdr, ...data]);
@@ -253,8 +272,9 @@ export default function App() {
 
   const handleImport = (imported) => {
     if (!imported.length) { toast("İçe aktarılacak veri yok", "var(--acc)"); return; }
-    setRecords(p => [...imported, ...p]);
-    toast(`✓ ${imported.length} kayıt içe aktarıldı`, "var(--ok)");
+    const normalized = normalizeRecords(imported);
+    setRecords(p => [...normalized, ...p]);
+    toast(`✓ ${normalized.length} kayıt içe aktarıldı`, "var(--ok)");
   };
 
   const customers = {
