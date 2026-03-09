@@ -7,7 +7,7 @@ import { getCustomerList } from "../utils";
 
 export default function EditRecordModal({ record, fields, customers, onSave, onClose, canManageCustomers = false }) {
   const [form, set] = useFormState({ ...record });
-  const allF = [{ id: "barcode", label: "Barkod", type: "Metin" }, ...fields.filter(f => f.id !== "barcode")];
+  const allF = [{ id: "barcode", label: "Barkod", type: "Metin", readonly: true }, ...fields.filter(f => f.id !== "barcode")];
   const customerList = getCustomerList(customers);
   const normalizeCustomer = (val) => val === "-Boş-" ? "" : val;
 

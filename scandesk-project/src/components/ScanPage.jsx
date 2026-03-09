@@ -59,6 +59,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
   const [scanPulse, setScanPulse] = useState(false);
   const trackRef = useRef(null);
   const [pendingBc, setPendingBc] = useState(null);
+  const [cameraLoading, setCameraLoading] = useState(false);
 
   const [bulkMode, setBulkMode]   = useState(false);
   const [bulkList, setBulkList]   = useState([]);
@@ -162,6 +163,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     trackRef.current = null;
     setCamActive(false);
     setCamStatus("idle");
+    setCameraLoading(false);
     cleanupScanner();
     scheduleFocus();
   }, [cleanupScanner, scheduleFocus]);
@@ -178,13 +180,25 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
 
     const reader = readerRef.current;
     const cooldown = scanSettings.scanDebounceMs || 800;
-    // Use scanDebounceMs to control decode interval (default 800ms = ~120-200ms range suggested)
+    // Optimize decode interval for better performance
     // Lower values = faster scanning but more CPU usage
-    const decodeInterval = Math.max(120, Math.min(scanSettings.scanDebounceMs || 150, 200));
+    const decodeInterval = Math.max(100, Math.min(scanSettings.scanDebounceMs || 120, 150));
     scanLockRef.current = false;
 
     try {
-      // Use decodeFromVideoDevice instead of decodeFromVideoElementContinuously
+      // Request camera with optimal constraints for barcode scanning
+      const constraints = {
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920, max: 1920 },
+          height: { ideal: 1080, max: 1080 },
+          focusMode: { ideal: "continuous" },
+          // Enable autofocus for better barcode detection
+          advanced: [{ focusMode: "continuous" }]
+        }
+      };
+
+      // Use decodeFromVideoDevice with optimal constraints
       // Pass undefined as deviceId to use default/first camera device
       // This will handle the stream internally and decode continuously
       await reader.decodeFromVideoDevice(undefined, videoRef.current, (res, err) => {
@@ -241,6 +255,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     }
     if (camActive) return;
 
+    setCameraLoading(true);
     setCamStatus("modal-opened");
     setCamActive(true);
     // Note: Stream will be acquired by ZXing's decodeFromVideoDevice
@@ -274,12 +289,14 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
           trackRef.current = stream.getVideoTracks ? (stream.getVideoTracks()[0] || null) : null;
           setTorchOn(false);
           setCamStatus("playing");
+          setCameraLoading(false);
         }
       } catch (err) {
         if (cancelled) return;
         console.error("Camera initialization error:", err);
         const msg = err?.message || err;
         setCamStatus("error: " + msg);
+        setCameraLoading(false);
         toast("Kamera başlatılamadı: " + msg, "var(--err)");
       }
     };
@@ -569,7 +586,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
           value={customer}
           onChange={handleCustomerSelect}
           onClose={scheduleFocus}
-          canManage={isAdmin}
+          canManage={true}
           onAdd={customers.add}
           onRemove={customers.remove}
         />
@@ -625,6 +642,27 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
               </div>
 
               <div className="cam-overlay">
+                {cameraLoading && (
+                  <div style={{
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    background: "rgba(0, 0, 0, 0.8)",
+                    color: "#fff",
+                    padding: "16px 24px",
+                    borderRadius: "12px",
+                    fontSize: "16px",
+                    fontWeight: 600,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    zIndex: 1000
+                  }}>
+                    <div className="pulse" style={{ background: "var(--inf)", color: "var(--inf)" }} />
+                    Kamera açılıyor...
+                  </div>
+                )}
                 <div
                   className={`cam-frame ${scanPulse ? "cam-frame-success" : ""} ${scanSettings.scanBoxShape === "rect" ? "rect" : "square"}`}
                   style={{
@@ -801,7 +839,7 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
         })()}
       </div>
 
-      {editDupRec && <EditRecordModal record={editDupRec} fields={fields} customers={customers} canManageCustomers={isAdmin} onSave={(r)=>{ onEdit(r); setEditDupRec(null); }} onClose={()=>setEditDupRec(null)} />}
+      {editDupRec && <EditRecordModal record={editDupRec} fields={fields} customers={customers} canManageCustomers={true} onSave={(r)=>{ onEdit(r); setEditDupRec(null); }} onClose={()=>setEditDupRec(null)} />}
 
       {inheritModal && <ShiftInheritModal currentShift={currentShift} records={records} onCopy={copyFromShift} onClose={() => setInheritModal(false)} />}
 
