@@ -26,6 +26,7 @@ export default function CameraScannerScreen({
   scanSettings = {},
   customer = "",
   bulkMode = false,
+  closeOnScan = false,
 }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -34,6 +35,7 @@ export default function CameraScannerScreen({
   const scanLockRef = useRef(false);
   const lockTimerRef = useRef(null);
   const lastScanRef = useRef({ value: null, ts: 0 });
+  const focusIntervalRef = useRef(null);
 
   const [torchOn, setTorchOn] = useState(false);
   const [scanPulse, setScanPulse] = useState(false);
@@ -42,6 +44,45 @@ export default function CameraScannerScreen({
   const [scannedBarcodes, setScannedBarcodes] = useState([]);
 
   const { vibration = true, beep = true, scanDebounceMs = 800 } = scanSettings;
+
+  // Trigger autofocus manually
+  const triggerFocus = useCallback(async () => {
+    try {
+      const track = trackRef.current;
+      if (!track) return;
+
+      const capabilities = track.getCapabilities?.() || {};
+
+      // Try to trigger focus using different methods
+      if (capabilities.focusMode) {
+        await track.applyConstraints({
+          advanced: [{ focusMode: "continuous" }]
+        });
+      }
+
+      // Some devices support focus distance
+      if (capabilities.focusDistance) {
+        const settings = track.getSettings();
+        const currentDistance = settings.focusDistance || 0;
+        // Toggle focus distance slightly to trigger refocus
+        await track.applyConstraints({
+          advanced: [{ focusDistance: Math.max(0, currentDistance - 0.01) }]
+        });
+        setTimeout(async () => {
+          try {
+            await track.applyConstraints({
+              advanced: [{ focusMode: "continuous" }]
+            });
+          } catch (e) {
+            // Ignore errors on fallback
+          }
+        }, 50);
+      }
+    } catch (e) {
+      // Autofocus trigger failed, but don't block scanning
+      console.debug("Focus trigger error:", e);
+    }
+  }, []);
 
   const cleanupScanner = useCallback(() => {
     try {
@@ -56,6 +97,12 @@ export default function CameraScannerScreen({
   }, []);
 
   const stopCamera = useCallback(() => {
+    // Clear focus interval
+    if (focusIntervalRef.current) {
+      clearInterval(focusIntervalRef.current);
+      focusIntervalRef.current = null;
+    }
+
     streamRef.current?.getTracks()?.forEach((t) => t.stop());
     streamRef.current = null;
     if (videoRef.current) {
@@ -118,8 +165,16 @@ export default function CameraScannerScreen({
       if (onBarcodeScanned) {
         onBarcodeScanned(code);
       }
+
+      // Auto-close camera in single scan mode
+      if (closeOnScan && onClose) {
+        // Delay close slightly to allow feedback animations to complete
+        setTimeout(() => {
+          onClose();
+        }, 300);
+      }
     },
-    [scanDebounceMs, vibration, beep, onBarcodeScanned]
+    [scanDebounceMs, vibration, beep, onBarcodeScanned, closeOnScan, onClose]
   );
 
   const startDecoding = useCallback(async () => {
@@ -139,10 +194,15 @@ export default function CameraScannerScreen({
       const constraints = {
         video: {
           facingMode: { ideal: "environment" },
-          width: { ideal: 1920, max: 1920 },
-          height: { ideal: 1080, max: 1080 },
-          focusMode: { ideal: "continuous" },
-          advanced: [{ focusMode: "continuous" }],
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          aspectRatio: { ideal: 16/9 },
+          frameRate: { ideal: 30 },
+          advanced: [
+            { focusMode: "continuous" },
+            { focusDistance: 0 },
+            { zoom: 1.0 }
+          ],
         },
       };
 
@@ -204,7 +264,8 @@ export default function CameraScannerScreen({
       if (cancelled) return;
       const videoEl = videoRef.current;
       if (!videoEl) {
-        requestAnimationFrame(initCamera);
+        // Use a shorter delay for faster initialization
+        setTimeout(initCamera, 10);
         return;
       }
 
@@ -222,6 +283,20 @@ export default function CameraScannerScreen({
           setTorchOn(false);
           setCamStatus("playing");
           setCameraLoading(false);
+
+          // Trigger initial focus after camera starts
+          setTimeout(() => {
+            if (!cancelled && trackRef.current) {
+              triggerFocus();
+            }
+          }, 500);
+
+          // Set up periodic focus trigger every 3 seconds
+          focusIntervalRef.current = setInterval(() => {
+            if (!cancelled && trackRef.current) {
+              triggerFocus();
+            }
+          }, 3000);
         }
       } catch (err) {
         if (cancelled) return;
@@ -236,7 +311,7 @@ export default function CameraScannerScreen({
       cancelled = true;
       stopCamera();
     };
-  }, [isOpen, startDecoding, stopCamera]);
+  }, [isOpen, startDecoding, stopCamera, triggerFocus]);
 
   if (!isOpen) return null;
 
