@@ -264,37 +264,46 @@ export default function App() {
       return [r.barcode, ...ef.map(f => r[f.id] ?? ""), r.customer ?? "", r.scanned_by ?? "", r.scanned_by_username ?? "", dateOut, d.toLocaleTimeString("tr-TR")];
     });
     if (type === "xlsx") {
-      const ws = XLSX.utils.aoa_to_sheet([hdr, ...data]);
-      ws["!cols"] = hdr.map(() => ({ wch: 20 }));
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Taramalar");
-      const filename = `scandesk_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      try {
+        const ws = XLSX.utils.aoa_to_sheet([hdr, ...data]);
+        ws["!cols"] = hdr.map(() => ({ wch: 20 }));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Taramalar");
+        const filename = `scandesk_${new Date().toISOString().slice(0, 10)}.xlsx`;
 
-      if (isNative()) {
-        const b64 = XLSX.write(wb, { bookType: "xlsx", type: "base64" });
-        await Filesystem.writeFile({ path: filename, data: b64, directory: Directory.Documents });
-        await Share.share({ title: "ScanDesk Excel", text: "Excel dosyası hazır", url: (await Filesystem.getUri({ directory: Directory.Documents, path: filename })).uri });
-        toast("Excel hazır (Paylaş)", "var(--ok)");
-        return;
-      } else {
-        XLSX.writeFile(wb, filename);
+        if (isNative()) {
+          const b64 = XLSX.write(wb, { bookType: "xlsx", type: "base64" });
+          await Filesystem.writeFile({ path: filename, data: b64, directory: Directory.Documents });
+          await Share.share({ title: "ScanDesk Excel", text: "Excel dosyası hazır", url: (await Filesystem.getUri({ directory: Directory.Documents, path: filename })).uri });
+          toast("Excel hazır (Paylaş)", "var(--ok)");
+        } else {
+          XLSX.writeFile(wb, filename);
+          toast("Excel indirildi", "var(--ok)");
+        }
+      } catch (err) {
+        console.error("Excel export error:", err);
+        toast("Excel dışa aktarma hatası: " + (err?.message || err), "var(--err)");
       }
     } else {
-      const csv = [hdr, ...data].map(r => r.map(c => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
-      const filename = `scandesk_${Date.now()}.csv`;
-      if (isNative()) {
-        await Filesystem.writeFile({ path: filename, data: "\uFEFF" + csv, directory: Directory.Documents, encoding: Encoding.UTF8 });
-        await Share.share({ title: "ScanDesk CSV", text: "CSV dosyası hazır", url: (await Filesystem.getUri({ directory: Directory.Documents, path: filename })).uri });
-        toast("CSV hazır (Paylaş)", "var(--ok)");
-        return;
-      } else {
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }));
-        a.download = filename;
-        a.click();
+      try {
+        const csv = [hdr, ...data].map(r => r.map(c => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+        const filename = `scandesk_${Date.now()}.csv`;
+        if (isNative()) {
+          await Filesystem.writeFile({ path: filename, data: "\uFEFF" + csv, directory: Directory.Documents, encoding: Encoding.UTF8 });
+          await Share.share({ title: "ScanDesk CSV", text: "CSV dosyası hazır", url: (await Filesystem.getUri({ directory: Directory.Documents, path: filename })).uri });
+          toast("CSV hazır (Paylaş)", "var(--ok)");
+        } else {
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }));
+          a.download = filename;
+          a.click();
+          toast("CSV indirildi", "var(--ok)");
+        }
+      } catch (err) {
+        console.error("CSV export error:", err);
+        toast("CSV dışa aktarma hatası: " + (err?.message || err), "var(--err)");
       }
     }
-    toast(type.toUpperCase() + " indirildi");
   };
 
   const handleImport = (imported) => {
