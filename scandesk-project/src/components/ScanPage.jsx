@@ -3,6 +3,7 @@ import { Ic, I } from "./Icon";
 import { genId } from "../constants";
 import { fmtDate, fmtTime, nowTs, playBeep, getCurrentShift, FIXED_SHIFTS, getCustomerList, getShiftDate, deriveShiftDate } from "../utils";
 import { supabaseInsert, sheetsInsert } from "../services/integrations";
+import { getDynamicFieldValue, toDbPayload } from "../services/recordModel";
 import EditRecordModal from "./EditRecordModal";
 import CustomerPicker from "./CustomerPicker";
 import ShiftInheritModal from "./ShiftInheritModal";
@@ -218,17 +219,35 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
     // Admin: seçilen vardiyayı kullan; normal kullanıcı: saate göre otomatik
     const shift = isAdmin ? adminShift : getCurrentShift();
     const shiftDate = getShiftDate(now, shift);
-    const row = {
-      id: genId(), timestamp: now.toISOString(), date: dateStr, time: fmtTime(now),
-      barcode: bc, customer: customer || "",
-      shift, shiftDate,
-      inheritedFromShift: "",
-      scanned_by: user.name, scanned_by_username: user.username, synced: false,
-    };
+
+    // Create customFields object for dynamic fields
+    const customFields = {};
     extraFields.forEach(f => {
       const v = (extrasOverride ?? extras)[f.id];
-      row[f.id] = (f.type === "Tarih" && !v) ? now.toISOString().slice(0, 10) : (v ?? "");
+      customFields[f.id] = (f.type === "Tarih" && !v) ? now.toISOString().slice(0, 10) : (v ?? "");
     });
+
+    // Build record with fixed fields + customFields
+    const row = {
+      id: genId(),
+      barcode: bc,
+      timestamp: now.toISOString(),
+      date: dateStr,
+      time: fmtTime(now),
+      shift,
+      shiftDate,
+      customer: customer || "",
+      scanned_by: user.name,
+      scanned_by_username: user.username,
+      synced: false,
+      syncStatus: "pending",
+      syncError: "",
+      source: "scan",
+      inheritedFromShift: "",
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+      customFields,
+    };
 
     onSave(row);
     setBarcode(""); setExtras({}); setPendingBc(null);
@@ -240,9 +259,12 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
     if (integration.active) {
       const ef = fields.filter(f => f.id !== "barcode");
       const headers = ["Barkod", ...ef.map(f => f.label), "Müşteri", "Kaydeden", "Kullanıcı Adı", "Tarih", "Saat"];
-      const rowArr  = [row.id, bc, ...ef.map(f => row[f.id] ?? ""), row.customer, row.scanned_by, row.scanned_by_username, now.toLocaleDateString("tr-TR"), now.toLocaleTimeString("tr-TR")];
+      // Flatten customFields for sync payload
+      const rowArr  = [row.id, bc, ...ef.map(f => row.customFields[f.id] ?? ""), row.customer, row.scanned_by, row.scanned_by_username, now.toLocaleDateString("tr-TR"), now.toLocaleTimeString("tr-TR")];
       if (integration.type === "supabase") {
-        supabaseInsert(integration.supabase, row)
+        // Convert camelCase to snake_case for PostgreSQL compatibility
+        const dbPayload = toDbPayload(row);
+        supabaseInsert(integration.supabase, dbPayload)
           .then(() => onSyncUpdate?.(row.id))
           .catch(e => toast("Supabase hatası: " + e.message, "var(--err)"));
       } else {
@@ -277,7 +299,8 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
     const now = new Date();
     const copyDateStr = getShiftDate(now, targetShift);
     toCopy.forEach(r => {
-      onSave({
+      // Create new record maintaining customFields structure
+      const newRecord = {
         ...r,
         id: genId(),
         timestamp: now.toISOString(),
@@ -287,7 +310,13 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
         shiftDate: copyDateStr,
         inheritedFromShift: sourceShift,
         synced: false,
-      });
+        syncStatus: "pending",
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+        // Preserve customFields
+        customFields: r.customFields || {}
+      };
+      onSave(newRecord);
     });
     setInheritModal(false);
     if (toCopy.length > 0) {
@@ -529,6 +558,12 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 2 }}>
                         {(r.scanned_by || '—')} · {(r.customer || '—')} &nbsp; {r.time || ''}
+                        {/* Show custom field preview if available */}
+                        {r.customFields && Object.keys(r.customFields).length > 0 && (
+                          <span style={{ marginLeft: 8, opacity: 0.7 }}>
+                            {Object.entries(r.customFields).slice(0, 2).map(([k, v]) => v && `${k}: ${v}`).filter(Boolean).join(' · ')}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <button className="btn btn-info btn-sm" style={{ height: 32, padding: "0 8px" }} onClick={() => setEditDupRec(r)}><Ic d={I.edit} s={12} /></button>
