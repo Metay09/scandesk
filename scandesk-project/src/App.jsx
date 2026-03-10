@@ -201,8 +201,12 @@ export default function App() {
     if (isAdmin) return records.length;
     const currentShift = userLoginShift || getCurrentShift();
     const currentShiftDate = getShiftDate(undefined, currentShift);
-    return records.filter(r => r.shift === currentShift && deriveShiftDate(r) === currentShiftDate).length;
-  }, [isAdmin, records, userLoginShift]);
+    return records.filter(r =>
+      r.scanned_by_username === user?.username &&
+      r.shift === currentShift &&
+      deriveShiftDate(r) === currentShiftDate
+    ).length;
+  }, [isAdmin, records, userLoginShift, user]);
 
   const handleLogout = useCallback((reason = null) => {
     inGraceRef.current = false;

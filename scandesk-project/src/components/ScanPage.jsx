@@ -9,6 +9,7 @@ import CustomerPicker from "./CustomerPicker";
 import ShiftInheritModal from "./ShiftInheritModal";
 import ShiftTakeoverPrompt from "./ShiftTakeoverPrompt";
 import FieldInput from "./FieldInput";
+import DetailFormModal from "./DetailFormModal";
 
 export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records, lastSaved, customers, isAdmin, user, integration, scanSettings, toast, shiftExpired = false, shiftTakeovers = {}, onShiftTakeover }) {
   const customerList = getCustomerList(customers);
@@ -38,7 +39,6 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
   const [inheritModal, setInheritModal] = useState(false);
   const recentRef = useRef(new Map());
   const onBarcodeRef = useRef(null);
-  const firstFieldRef = useRef(null);
   const expectedBarcodeLength = useRef(null);
 
   // Vardiya devralma: giriş anında kontrol
@@ -357,32 +357,6 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
     if (autoSave) onBarcode(bc);
   };
 
-  const extraFields = fields.filter(f => f.id !== "barcode");
-
-  // Auto-focus first field when detail form appears
-  useEffect(() => {
-    if (pendingBc && firstFieldRef.current) {
-      setTimeout(() => {
-        firstFieldRef.current?.focus();
-      }, 100);
-    }
-  }, [pendingBc]);
-
-  // Handle Enter key navigation in detail form
-  const handleFieldKeyDown = (e, fieldIndex) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      if (fieldIndex < extraFields.length - 1) {
-        // Move to next field
-        const nextInput = e.target.closest('.detail-form')?.querySelectorAll('input, select, textarea')[fieldIndex + 1];
-        nextInput?.focus();
-      } else {
-        // Last field - save
-        doSave();
-      }
-    }
-  };
-
   return (
     <div className="page">
       {/* Vardiya Bilgisi — admin seçebilir, kullanıcı sadece görür */}
@@ -448,94 +422,69 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
          : <><div className="pulse" style={{ color: "var(--ok)" }} /> {autoSave ? "Hazır — okutun" : "Okutun, ardından Kaydet'e basın"}</>}
       </div>
 
-      {/* Detail form */}
-      {pendingBc && addDetailAfterScan ? (
-        <div className="detail-form">
-          <div><label className="lbl">Taranan Barkod</label><div className="detail-bc">{pendingBc}</div></div>
-          {extraFields.map((f, i) => (
-            <div key={f.id}>
-              <label className="lbl">{f.label}{f.required ? " *" : ""}</label>
-              <FieldInput
-                ref={i === 0 ? firstFieldRef : null}
-                field={f}
-                value={extras[f.id]}
-                onChange={(v) => setExtras(p => ({ ...p, [f.id]: v }))}
-                onKeyDown={(e) => handleFieldKeyDown(e, i)}
-              />
+      {/* Barcode input */}
+      <div className="bc-wrap">
+        <span className="bc-icon"><Ic d={I.barcode} s={22} /></span>
+        <input
+          ref={inputRef}
+          className="barcode-input"
+          value={barcode}
+          onChange={e => setBarcode(e.target.value)}
+          onKeyDown={handleKey}
+          placeholder={shiftExpired && !isAdmin ? "Vardiya sona erdi — okutma devre dışı" : "Barkod okutun veya girin..."}
+          disabled={shiftExpired && !isAdmin}
+          autoComplete="off" autoCorrect="off"
+          autoCapitalize="none" spellCheck={false} inputMode="text"
+        />
+      </div>
+
+      {/* Toplu Mod */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center" }}>
+        <button type="button" className={`btn btn-sm ${bulkMode ? "btn-info" : "btn-ghost"}`} onClick={() => {
+          if (bulkMode) {
+            const n = bulkList.length;
+            setBulkMode(false);
+            setBulkList([]);
+            toast(n ? `⚠ Kaydedilmemiş ${n} barkod vardı. Toplu mod kapatıldı.` : "Toplu mod kapandı", "var(--inf)");
+          } else {
+            setBulkMode(true);
+            toast("Toplu mod açıldı", "var(--inf)");
+          }
+        }}>
+          <Ic d={I.group} s={14} /> Toplu Mod
+        </button>
+        {bulkMode && (
+          <>
+            <button type="button" className="btn btn-danger btn-sm" onClick={() => setBulkList([])}><Ic d={I.trash} s={14} /> Temizle</button>
+            <button type="button" className="btn btn-ok btn-sm" onClick={() => {
+              if (!bulkList.length) { toast("Kaydedilecek veri yok", "var(--acc)"); return; }
+              const list = [...bulkList].reverse();
+              list.forEach(x => doSaveCode(x.code, extras));
+              setBulkList([]);
+              setBulkMode(false);
+              toast(`✓ ${list.length} kayıt kaydedildi. Toplu mod kapatıldı.`, "var(--ok)");
+            }}>
+              <Ic d={I.save} s={14} /> Toplu Kaydet ({bulkList.length})
+            </button>
+          </>
+        )}
+      </div>
+
+      {bulkMode && bulkList.length > 0 && (
+        <div style={{ marginBottom: 10, maxHeight: 160, overflow: "auto", border: "1.5px solid var(--brd)", borderRadius: "var(--r)", padding: 8, background: "var(--card)" }}>
+          {bulkList.map((x, i) => (
+            <div key={x.code} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 4px", borderBottom: i === bulkList.length - 1 ? "none" : "1px solid var(--brd)" }}>
+              <span className="bc" style={{ flex: 1 }}>{x.code}</span>
+              <button className="btn btn-danger btn-sm" style={{ height: 28 }} onClick={() => setBulkList(p => p.filter(y => y.code !== x.code))}><Ic d={I.del} s={12} /></button>
             </div>
           ))}
-          <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn btn-ok" style={{ flex: 1 }} onClick={doSave}><Ic d={I.save} s={16} /> Kaydet</button>
-            <button className="btn btn-ghost btn-sm" onClick={() => { setPendingBc(null); setBarcode(""); setExtras({}); scheduleFocus(); }}>İptal</button>
-          </div>
         </div>
-      ) : (
-        <>
-          {/* Barcode input */}
-          <div className="bc-wrap">
-            <span className="bc-icon"><Ic d={I.barcode} s={22} /></span>
-            <input
-              ref={inputRef}
-              className="barcode-input"
-              value={barcode}
-              onChange={e => setBarcode(e.target.value)}
-              onKeyDown={handleKey}
-              placeholder={shiftExpired && !isAdmin ? "Vardiya sona erdi — okutma devre dışı" : "Barkod okutun veya girin..."}
-              disabled={shiftExpired && !isAdmin}
-              autoComplete="off" autoCorrect="off"
-              autoCapitalize="none" spellCheck={false} inputMode="text"
-            />
-          </div>
+      )}
 
-          {/* Toplu Mod */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center" }}>
-            <button type="button" className={`btn btn-sm ${bulkMode ? "btn-info" : "btn-ghost"}`} onClick={() => {
-              if (bulkMode) {
-                const n = bulkList.length;
-                setBulkMode(false);
-                setBulkList([]);
-                toast(n ? `⚠ Kaydedilmemiş ${n} barkod vardı. Toplu mod kapatıldı.` : "Toplu mod kapandı", "var(--inf)");
-              } else {
-                setBulkMode(true);
-                toast("Toplu mod açıldı", "var(--inf)");
-              }
-            }}>
-              <Ic d={I.group} s={14} /> Toplu Mod
-            </button>
-            {bulkMode && (
-              <>
-                <button type="button" className="btn btn-danger btn-sm" onClick={() => setBulkList([])}><Ic d={I.trash} s={14} /> Temizle</button>
-                <button type="button" className="btn btn-ok btn-sm" onClick={() => {
-                  if (!bulkList.length) { toast("Kaydedilecek veri yok", "var(--acc)"); return; }
-                  const list = [...bulkList].reverse();
-                  list.forEach(x => doSaveCode(x.code, extras));
-                  setBulkList([]);
-                  setBulkMode(false);
-                  toast(`✓ ${list.length} kayıt kaydedildi. Toplu mod kapatıldı.`, "var(--ok)");
-                }}>
-                  <Ic d={I.save} s={14} /> Toplu Kaydet ({bulkList.length})
-                </button>
-              </>
-            )}
-          </div>
-
-          {bulkMode && bulkList.length > 0 && (
-            <div style={{ marginBottom: 10, maxHeight: 160, overflow: "auto", border: "1.5px solid var(--brd)", borderRadius: "var(--r)", padding: 8, background: "var(--card)" }}>
-              {bulkList.map((x, i) => (
-                <div key={x.code} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 4px", borderBottom: i === bulkList.length - 1 ? "none" : "1px solid var(--brd)" }}>
-                  <span className="bc" style={{ flex: 1 }}>{x.code}</span>
-                  <button className="btn btn-danger btn-sm" style={{ height: 28 }} onClick={() => setBulkList(p => p.filter(y => y.code !== x.code))}><Ic d={I.del} s={12} /></button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {!autoSave && (
-            <button className="btn btn-ok btn-full btn-lg" style={{ marginBottom: 10 }} onClick={doSave}>
-              <Ic d={I.save} s={20} /> Kaydet
-            </button>
-          )}
-        </>
+      {!autoSave && (
+        <button className="btn btn-ok btn-full btn-lg" style={{ marginBottom: 10 }} onClick={doSave}>
+          <Ic d={I.save} s={20} /> Kaydet
+        </button>
       )}
 
       {/* Signature bar */}
@@ -552,7 +501,11 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
 
         {(() => {
           const todayShift = currentShiftDate;
-          const all = (records || []).filter(r => r.shift === currentShift && deriveShiftDate(r) === todayShift).slice().sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+          const all = (records || []).filter(r =>
+            r.scanned_by_username === user?.username &&
+            r.shift === currentShift &&
+            deriveShiftDate(r) === todayShift
+          ).slice().sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
           const lim = scanSettings.recentLimit;
           const view = (lim === 0 || lim === "0" || lim === "full") ? all : all.slice(0, Number(lim || 10));
           return (
@@ -599,6 +552,17 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
           shift={currentShift}
           onTakeover={handleTakeoverAccept}
           onCancel={handleTakeoverCancel}
+        />
+      )}
+
+      {pendingBc && addDetailAfterScan && (
+        <DetailFormModal
+          barcode={pendingBc}
+          fields={fields.filter(f => f.id !== "barcode")}
+          extras={extras}
+          onExtrasChange={(fieldId, value) => setExtras(p => ({ ...p, [fieldId]: value }))}
+          onSave={doSave}
+          onClose={() => { setPendingBc(null); setBarcode(""); setExtras({}); scheduleFocus(); }}
         />
       )}
     </div>
