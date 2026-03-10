@@ -349,15 +349,22 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
           )}
           {integration?.active && integration.type === "gsheets" && visibleRecords.length > 0 && (
             <button
-              className="btn btn-info btn-full"
+              className="btn btn-info"
               onClick={handleBulkSync}
               disabled={isBulkSyncing}
               title="Görünenleri senkronize et"
-              style={{ position: "relative" }}
+              style={{
+                width: 44,
+                height: 44,
+                padding: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center"
+              }}
             >
-              <Ic d={I.refresh} s={15} style={{
+              <Ic d={I.refresh} s={18} style={{
                 animation: isBulkSyncing ? "spin 1s linear infinite" : "none"
-              }} /> Toplu Senkron
+              }} />
             </button>
           )}
         </div>
