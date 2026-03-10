@@ -51,12 +51,9 @@ export default function App() {
     return shiftDate ? { ...rec, shiftDate } : { ...rec };
   }, []);
 
-  const normalizeRecordsWithModel = useCallback((list, fieldDefs) => {
+  const normalizeRecordsWithModel = useCallback((list, fieldDefs = fields) => {
     if (!Array.isArray(list)) return [];
-    // Migrate records to new model (fixed fields + customFields) and add shiftDate
-    // Use provided fieldDefs if available, otherwise fall back to current fields state
-    const fieldsToUse = fieldDefs || fields;
-    return migrateRecords(list, fieldsToUse).map(addShiftDate);
+    return migrateRecords(list, fieldDefs).map(addShiftDate);
   }, [addShiftDate, fields]);
 
   // Apply theme to document
@@ -128,35 +125,60 @@ export default function App() {
 
   // Load persisted state on start
   useEffect(() => {
+    let alive = true;
+
     (async () => {
       const st = await loadState();
-      if (st && typeof st === "object") {
-        // Load fields first, before normalizing records
-        const loadedFields = (Array.isArray(st.fields) && st.fields.length) ? st.fields : INITIAL_FIELDS;
-        if (Array.isArray(st.users) && st.users.length) setUsers(st.users);
-        if (Array.isArray(st.fields) && st.fields.length) setFields(st.fields);
-        // Migrate and normalize records using PERSISTED fields, not current state
-        // This prevents custom field loss when field definitions change between sessions
-        if (Array.isArray(st.records)) setRecords(normalizeRecordsWithModel(st.records, loadedFields));
-        if (st.lastSaved) {
-          // Use persisted fields for lastSaved as well
-          const normalized = normalizeRecord(st.lastSaved, loadedFields);
-          setLastSaved(addShiftDate(normalized));
-        }
-        if (Array.isArray(st.custList) && st.custList.length) setCustList(st.custList);
-        if (st.settings) {
-          setSettings(st.settings);
-        }
-        if (st.integration) setIntegration(st.integration);
-        if (st.shiftTakeovers && typeof st.shiftTakeovers === "object") setShiftTakeovers(st.shiftTakeovers);
+      if (!alive) return;
+
+      const loadedFields =
+        Array.isArray(st?.fields) && st.fields.length
+          ? st.fields
+          : INITIAL_FIELDS;
+
+      const loadedUsers =
+        Array.isArray(st?.users) && st.users.length
+          ? st.users
+          : [];
+
+      const hasAdmin = loadedUsers.some(u => u.username === "admin");
+      setUsers(hasAdmin ? loadedUsers : [INITIAL_USERS[0], ...loadedUsers]);
+
+      if (Array.isArray(st?.fields) && st.fields.length) {
+        setFields(st.fields);
       }
-      // ensure admin exists
-      setUsers(p => {
-        const hasAdmin = p.some(u => u.username === "admin");
-        return hasAdmin ? p : [INITIAL_USERS[0], ...p];
-      });
+
+      if (Array.isArray(st?.records)) {
+        setRecords(normalizeRecordsWithModel(st.records, loadedFields));
+      }
+
+      if (st?.lastSaved) {
+        const normalized = normalizeRecord(st.lastSaved, loadedFields);
+        setLastSaved(addShiftDate(normalized));
+      }
+
+      if (Array.isArray(st?.custList) && st.custList.length) {
+        setCustList(st.custList);
+      }
+
+      if (st?.settings) {
+        setSettings(st.settings);
+      }
+
+      if (st?.integration) {
+        setIntegration(st.integration);
+      }
+
+      if (st?.shiftTakeovers && typeof st.shiftTakeovers === "object") {
+        setShiftTakeovers(st.shiftTakeovers);
+      }
+
       setHydrated(true);
     })();
+
+    return () => {
+      alive = false;
+    };
   }, [addShiftDate, normalizeRecordsWithModel]);
 
   // Persist on changes
