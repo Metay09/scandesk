@@ -2,8 +2,9 @@ import { useEffect, useRef } from "react";
 import { Ic, I } from "./Icon";
 import Modal from "./Modal";
 import FieldInput from "./FieldInput";
+import CustomerPicker from "./CustomerPicker";
 
-export default function DetailFormModal({ barcode, fields, extras, onExtrasChange, onSave, onClose }) {
+export default function DetailFormModal({ barcode, fields, extras, onExtrasChange, customer, onCustomerChange, customerList, onCustomerAdd, onCustomerRemove, canManageCustomers, onSave, onClose }) {
   const firstFieldRef = useRef(null);
 
   // Auto-focus first field when modal opens
@@ -68,6 +69,19 @@ export default function DetailFormModal({ barcode, fields, extras, onExtrasChang
           />
         </div>
       ))}
+      {customerList && (
+        <div>
+          <CustomerPicker
+            label="Müşteri"
+            customers={customerList}
+            value={customer || ""}
+            onChange={onCustomerChange}
+            canManage={canManageCustomers}
+            onAdd={canManageCustomers ? onCustomerAdd : undefined}
+            onRemove={canManageCustomers ? onCustomerRemove : undefined}
+          />
+        </div>
+      )}
     </Modal>
   );
 }
