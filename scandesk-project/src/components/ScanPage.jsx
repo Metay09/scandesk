@@ -552,7 +552,11 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
 
         {(() => {
           const todayShift = currentShiftDate;
-          const all = (records || []).filter(r => r.shift === currentShift && deriveShiftDate(r) === todayShift).slice().sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+          const all = (records || []).filter(r =>
+            r.scanned_by_username === user?.username &&
+            r.shift === currentShift &&
+            deriveShiftDate(r) === todayShift
+          ).slice().sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
           const lim = scanSettings.recentLimit;
           const view = (lim === 0 || lim === "0" || lim === "full") ? all : all.slice(0, Number(lim || 10));
           return (
