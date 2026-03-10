@@ -52,6 +52,10 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
         labelMap["timestamp"] = "timestamp";
         labelMap["senkronize"] = "synced";
         labelMap["senkronizasyon durumu"] = "syncStatus";
+        labelMap["senkronizasyon hatası"] = "syncError";
+        labelMap["senkronizasyon hatasi"] = "syncError";
+        labelMap["devralınan vardiya"] = "inheritedFromShift";
+        labelMap["devralinan vardiya"] = "inheritedFromShift";
         labelMap["kaynak"] = "source";
         labelMap["oluşturulma"] = "createdAt";
         labelMap["olusturulma"] = "createdAt";
@@ -60,16 +64,62 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
 
         // Use FIXED_FIELDS from recordModel for consistency
 
+        // Helper to parse value based on field type
+        const parseFieldValue = (value, fieldId) => {
+          if (value == null || value === "") return "";
+
+          // Find field definition to get type
+          const field = allF.find(f => f.id === fieldId);
+          if (!field || !field.type) return String(value);
+
+          // Parse based on field type
+          switch (field.type) {
+            case "Sayı": {
+              // Number type - parse as number if valid
+              const num = Number(value);
+              return isNaN(num) ? "" : num;
+            }
+            case "Onay Kutusu": {
+              // Checkbox type - parse as boolean
+              const strVal = String(value).toLowerCase();
+              if (strVal === "true" || strVal === "1" || strVal === "yes" || strVal === "evet") return true;
+              if (strVal === "false" || strVal === "0" || strVal === "no" || strVal === "hayır") return false;
+              return Boolean(value);
+            }
+            case "Tarih": {
+              // Date type - keep as YYYY-MM-DD string, validate format
+              const dateStr = String(value);
+              // Ensure valid ISO date format YYYY-MM-DD
+              if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                return dateStr;
+              }
+              // Try to parse and convert to ISO format
+              const d = new Date(dateStr);
+              return isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
+            }
+            case "Metin":
+            case "Seçim":
+            default:
+              // Text and other types - keep as string
+              return String(value);
+          }
+        };
+
         const imported = rows.map(row => {
           const rec = { id: genId(), synced: false, customFields: {} };
           Object.entries(row).forEach(([col, val]) => {
             const fid = labelMap[col.toLowerCase().trim()];
             if (fid && FIXED_FIELDS.includes(fid)) {
               // It's a fixed field - put it at root level
-              rec[fid] = String(val ?? "");
+              // Parse based on known system field types
+              if (fid === "synced") {
+                rec[fid] = val === "true" || val === true || val === "1";
+              } else {
+                rec[fid] = String(val ?? "");
+              }
             } else if (fid) {
-              // It's a dynamic field - put it in customFields
-              rec.customFields[fid] = String(val ?? "");
+              // It's a dynamic field - put it in customFields with type parsing
+              rec.customFields[fid] = parseFieldValue(val, fid);
             } else {
               // Unknown column - treat as dynamic field to preserve data
               const cleanCol = col.trim();

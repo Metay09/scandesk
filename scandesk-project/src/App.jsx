@@ -8,7 +8,7 @@ import "./index.css";
 import { INITIAL_USERS, INITIAL_SETTINGS, INITIAL_FIELDS, DEFAULT_CUSTS } from "./constants";
 import { isNative, loadState, saveState } from "./services/storage";
 import { getCurrentShift, pad2, deriveShiftDate, getShiftDate, getShiftEndTime } from "./utils";
-import { normalizeRecord, migrateRecords, flattenRecordForExport } from "./services/recordModel";
+import { normalizeRecord, migrateRecords } from "./services/recordModel";
 import { useToast } from "./hooks/useToast";
 import { Ic, I } from "./components/Icon";
 import Login from "./components/Login";
@@ -51,10 +51,12 @@ export default function App() {
     return shiftDate ? { ...rec, shiftDate } : { ...rec };
   }, []);
 
-  const normalizeRecordsWithModel = useCallback((list) => {
+  const normalizeRecordsWithModel = useCallback((list, fieldDefs) => {
     if (!Array.isArray(list)) return [];
     // Migrate records to new model (fixed fields + customFields) and add shiftDate
-    return migrateRecords(list, fields).map(addShiftDate);
+    // Use provided fieldDefs if available, otherwise fall back to current fields state
+    const fieldsToUse = fieldDefs || fields;
+    return migrateRecords(list, fieldsToUse).map(addShiftDate);
   }, [addShiftDate, fields]);
 
   // Apply theme to document
@@ -129,12 +131,16 @@ export default function App() {
     (async () => {
       const st = await loadState();
       if (st && typeof st === "object") {
+        // Load fields first, before normalizing records
+        const loadedFields = (Array.isArray(st.fields) && st.fields.length) ? st.fields : INITIAL_FIELDS;
         if (Array.isArray(st.users) && st.users.length) setUsers(st.users);
         if (Array.isArray(st.fields) && st.fields.length) setFields(st.fields);
-        // Migrate and normalize records to new structure on load
-        if (Array.isArray(st.records)) setRecords(normalizeRecordsWithModel(st.records));
+        // Migrate and normalize records using PERSISTED fields, not current state
+        // This prevents custom field loss when field definitions change between sessions
+        if (Array.isArray(st.records)) setRecords(normalizeRecordsWithModel(st.records, loadedFields));
         if (st.lastSaved) {
-          const normalized = normalizeRecord(st.lastSaved, st.fields || fields);
+          // Use persisted fields for lastSaved as well
+          const normalized = normalizeRecord(st.lastSaved, loadedFields);
           setLastSaved(addShiftDate(normalized));
         }
         if (Array.isArray(st.custList) && st.custList.length) setCustList(st.custList);
@@ -151,7 +157,7 @@ export default function App() {
       });
       setHydrated(true);
     })();
-  }, [addShiftDate, normalizeRecordsWithModel, fields]);
+  }, [addShiftDate, normalizeRecordsWithModel]);
 
   // Persist on changes
   useEffect(() => {
@@ -250,8 +256,16 @@ export default function App() {
     setRecords(p => [rec, ...p]);
     setLastSaved(rec);
   }, [addShiftDate, fields]);
-  const handleSyncUpdate = useCallback(id => {
-    setRecords(p => p.map(r => r.id === id ? { ...r, synced: true } : r));
+  const handleSyncUpdate = useCallback((id, success = true, error = null) => {
+    setRecords(p => p.map(r => {
+      if (r.id !== id) return r;
+      return {
+        ...r,
+        synced: success,
+        syncStatus: success ? "synced" : "failed",
+        syncError: error || ""
+      };
+    }));
   }, []);
   const handleDelete = id => { setRecords(p => p.filter(r => r.id !== id)); setLastSaved(p => (p && p.id === id ? null : p)); toast("Kayıt silindi", "var(--err)"); };
   const handleEdit   = r  => {
@@ -285,7 +299,7 @@ export default function App() {
     const hdr = [
       "ID", "Barkod", ...ef.map(f => f.label), "Müşteri", "Kaydeden", "Kullanıcı Adı",
       "Tarih", "Saat", "Vardiya", "Vardiya Tarihi", "Timestamp",
-      "Senkronize", "Senkronizasyon Durumu", "Kaynak", "Oluşturulma", "Güncellenme"
+      "Senkronize", "Senkronizasyon Durumu", "Senkronizasyon Hatası", "Devralınan Vardiya", "Kaynak", "Oluşturulma", "Güncellenme"
     ];
 
     // Helper to safely get field value while preserving data types
@@ -311,8 +325,13 @@ export default function App() {
       try {
         const d = new Date(r.timestamp);
         const isValidDate = !Number.isNaN(d.getTime());
-        const dateOut = deriveShiftDate(r) || (isValidDate ? d.toLocaleDateString("tr-TR") : "");
-        const timeOut = isValidDate ? d.toLocaleTimeString("tr-TR") : "";
+
+        // Use ISO 8601 standard formats for dates/times
+        // timestamp: ISO 8601 full format (already stored as ISO)
+        // date: YYYY-MM-DD
+        // time: HH:MM:SS
+        const dateOut = r.shiftDate || (isValidDate ? d.toISOString().slice(0, 10) : "");
+        const timeOut = isValidDate ? d.toISOString().slice(11, 19) : "";
 
         return [
           safeValue(r.id),
@@ -328,6 +347,8 @@ export default function App() {
           safeValue(r.timestamp),
           safeValue(r.synced),
           safeValue(r.syncStatus),
+          safeValue(r.syncError),
+          safeValue(r.inheritedFromShift),
           safeValue(r.source),
           safeValue(r.createdAt),
           safeValue(r.updatedAt)
