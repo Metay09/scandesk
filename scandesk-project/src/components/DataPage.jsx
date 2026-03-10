@@ -6,13 +6,15 @@ import Modal from "./Modal";
 import { genId } from "../constants";
 import { toggleSetMember, deriveShiftDate, getShiftDate } from "../utils";
 import { getDynamicFieldValue, FIXED_FIELDS } from "../services/recordModel";
+import { syncRecordToSheets } from "../services/integrations";
 
-export default function DataPage({ fields, records, onDelete, onEdit, onExport, onImport, customers, settings, toast, isAdmin, currentShift, user }) {
+export default function DataPage({ fields, records, onDelete, onEdit, onExport, onImport, customers, settings, toast, isAdmin, currentShift, user, integration, onSyncUpdate }) {
   const [q, setQ]           = useState("");
   const [grouped, setGrouped] = useState(true);
   const [editRec, setEditRec] = useState(null);
   const [sel, setSel] = useState(() => new Set());
   const [pendingImport, setPendingImport] = useState(null); // Admin approval için bekleyen import
+  const [isBulkSyncing, setIsBulkSyncing] = useState(false);
   const importRef = useRef(null);
   const toggleSel = (id) => setSel(p => toggleSetMember(p, id));
   const clearSel = () => setSel(new Set());
@@ -216,6 +218,48 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
     toast && toast("İçe aktarma iptal edildi", "var(--acc)");
   };
 
+  const handleBulkSync = async () => {
+    if (!integration?.active || integration.type !== "gsheets") {
+      toast && toast("Google Sheets entegrasyonu aktif değil", "var(--err)");
+      return;
+    }
+
+    if (isBulkSyncing) return; // Prevent double-click
+
+    // Get visible records (respects admin/user permissions)
+    const toSync = visibleRecords;
+
+    if (toSync.length === 0) {
+      toast && toast("Senkronize edilecek kayıt yok", "var(--acc)");
+      return;
+    }
+
+    setIsBulkSyncing(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    // Sync each record
+    for (const record of toSync) {
+      try {
+        await syncRecordToSheets(integration.gsheets, record, fields);
+        successCount++;
+        onSyncUpdate?.(record.id, true, null);
+      } catch (e) {
+        errorCount++;
+        onSyncUpdate?.(record.id, false, e.message);
+      }
+    }
+
+    setIsBulkSyncing(false);
+
+    // Show summary
+    if (errorCount === 0) {
+      toast && toast(`${successCount} kayıt için senkron isteği gönderildi`, "var(--ok)");
+    } else {
+      toast && toast(`${successCount} kayıt gönderildi, ${errorCount} kayıt gönderilemedi`, "var(--err)");
+    }
+  };
+
   const allF = [{ id: "barcode", label: "Barkod", type: "Metin" }, ...fields.filter(f => f.id !== "barcode")];
   // Admin tüm kayıtları görebilir; normal kullanıcılar sadece kendi vardiyalarındaki kendi kayıtlarını görür
   const visibleRecords = isAdmin
@@ -286,8 +330,8 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
   return (
     <div className="page">
 
-      {/* Export/Import buttons in one row - all same size */}
-      {(settings.allowExport || settings.allowImport) && (
+      {/* Export/Import/Sync buttons in one row - all same size */}
+      {(settings.allowExport || settings.allowImport || (integration?.active && integration.type === "gsheets")) && (
         <div className="export-row">
           {settings.allowExport && (
             <>
@@ -302,6 +346,19 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
                 <Ic d={I.upload} s={15} /> İçe Aktar
               </button>
             </>
+          )}
+          {integration?.active && integration.type === "gsheets" && visibleRecords.length > 0 && (
+            <button
+              className="btn btn-info btn-full"
+              onClick={handleBulkSync}
+              disabled={isBulkSyncing}
+              title="Görünenleri senkronize et"
+              style={{ position: "relative" }}
+            >
+              <Ic d={I.refresh} s={15} style={{
+                animation: isBulkSyncing ? "spin 1s linear infinite" : "none"
+              }} /> Toplu Senkron
+            </button>
           )}
         </div>
       )}
