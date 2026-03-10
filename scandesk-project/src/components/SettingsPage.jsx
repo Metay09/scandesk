@@ -65,35 +65,35 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
         <div className="section-hd">Veri Temizleme (Aralık)</div>
         <div className="s-card">
           <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 10 }}>
-            <div style={{ fontSize: 12, color: "var(--tx2)" }}>Tarih/Saat aralığı seçin. Seçilen aralıktaki kayıtlar silinir.</div>
             <div style={{ display: "flex", gap: 8 }}>
               <div style={{ flex: 1 }}>
                 <input
                   type="datetime-local"
                   value={rangeStart}
                   onChange={e => setRangeStart(e.target.value)}
-                  placeholder="Başlangıç"
                   style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: rangeStart ? "var(--tx)" : "var(--tx2)", border: "1.5px solid var(--brd)", fontSize: 12 }}
                 />
+                <div style={{ fontSize: 10, color: "var(--tx2)", marginTop: 3, paddingLeft: 2 }}>ör: 01.01.2026 04:27</div>
               </div>
               <div style={{ flex: 1 }}>
                 <input
                   type="datetime-local"
                   value={rangeEnd}
                   onChange={e => setRangeEnd(e.target.value)}
-                  placeholder="Bitiş"
                   style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: rangeEnd ? "var(--tx)" : "var(--tx2)", border: "1.5px solid var(--brd)", fontSize: 12 }}
                 />
+                <div style={{ fontSize: 10, color: "var(--tx2)", marginTop: 3, paddingLeft: 2 }}>ör: 01.02.2026 04:27</div>
               </div>
             </div>
             <button className="btn btn-danger" disabled={!rangeStart || !rangeEnd} onClick={() => {
-              if (!rangeStart || !rangeEnd) { toast("Aralık seçin", "var(--acc)"); return; }
-              const a = new Date(rangeStart).toISOString();
-              const b = new Date(rangeEnd).toISOString();
+              const toISO = (v) => { const d = new Date(v); return isNaN(d.getTime()) ? null : d.toISOString(); };
+              const a = toISO(rangeStart);
+              const b = toISO(rangeEnd);
+              if (!a || !b) { toast("Geçerli tarih seçin", "var(--acc)"); return; }
               const n = records.filter(r => r.timestamp >= a && r.timestamp <= b).length;
               if (!n) { toast("Bu aralıkta kayıt yok", "var(--acc)"); return; }
               if (!window.confirm(`${n} kayıt silinecek (seçilen aralık). Onaylıyor musunuz?`)) return;
-              onDeleteRange(rangeStart, rangeEnd);
+              onDeleteRange(a, b);
               toast(`${n} kayıt silindi`, "var(--err)");
               setRangeStart(""); setRangeEnd("");
             }}><Ic d={I.trash} s={16} /> Seçilen Aralığı Sil</button>
