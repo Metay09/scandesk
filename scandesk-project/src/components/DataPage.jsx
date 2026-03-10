@@ -165,13 +165,16 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
     </tr>
   ));
 
-  const THead = ({ showCust }) => (
-    <thead><tr>
-      <th>#</th>
-      <th style={{ width: 34 }}><input type="checkbox" checked={sel.size>0 && filtered.length>0 && filtered.every(r=>sel.has(r.id))} onChange={e => { if (e.target.checked) setSel(new Set(filtered.map(r=>r.id))); else clearSel(); }} /></th>{allF.map(f => <th key={f.id}>{f.label}</th>)}
-      {showCust && <th>Müşteri</th>}<th>Kaydeden</th><th>Saat</th><th></th>
-    </tr></thead>
-  );
+  const THead = ({ showCust, rows: scopeRows }) => {
+    const scope = scopeRows || filtered;
+    return (
+      <thead><tr>
+        <th>#</th>
+        <th style={{ width: 34 }}><input type="checkbox" checked={scope.length>0 && scope.every(r=>sel.has(r.id))} onChange={e => { if (e.target.checked) setSel(p => new Set([...p, ...scope.map(r=>r.id)])); else setSel(p => { const n = new Set(p); scope.forEach(r => n.delete(r.id)); return n; }); }} /></th>{allF.map(f => <th key={f.id}>{f.label}</th>)}
+        {showCust && <th>Müşteri</th>}<th>Kaydeden</th><th>Saat</th><th></th>
+      </tr></thead>
+    );
+  };
 
   return (
     <div className="page">
@@ -231,7 +234,7 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
           <div key={k}>
             <div className="group-hd"><Ic d={I.user} s={13} />{k}<span className="group-count">{rows.length}</span></div>
             <div className="tbl-wrap" style={{ marginBottom: 6 }}>
-              <table className="tbl"><THead showCust={false} /><tbody><Rows rows={rows} showCust={false} /></tbody></table>
+              <table className="tbl"><THead showCust={false} rows={rows} /><tbody><Rows rows={rows} showCust={false} /></tbody></table>
             </div>
           </div>
         ))
