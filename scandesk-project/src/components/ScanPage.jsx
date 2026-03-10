@@ -561,6 +561,12 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
           fields={fields.filter(f => f.id !== "barcode")}
           extras={extras}
           onExtrasChange={(fieldId, value) => setExtras(p => ({ ...p, [fieldId]: value }))}
+          customer={customer}
+          onCustomerChange={handleCustomerSelect}
+          customerList={customerList}
+          onCustomerAdd={customers.add}
+          onCustomerRemove={customers.remove}
+          canManageCustomers={true}
           onSave={doSave}
           onClose={() => { setPendingBc(null); setBarcode(""); setExtras({}); scheduleFocus(); }}
         />

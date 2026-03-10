@@ -43,3 +43,26 @@ export async function sheetsDelete(cfg, id) {
     body: JSON.stringify({ action: "delete", id }),
   });
 }
+
+// Helper function to sync a single record to Google Sheets
+// Builds the standard payload format and sends to Apps Script
+// Used for create, update, and bulk sync operations
+export async function syncRecordToSheets(cfg, record, fields) {
+  const ef = fields.filter(f => f.id !== "barcode");
+  const headers = ["Barkod", ...ef.map(f => f.label), "Müşteri", "Kaydeden", "Kullanıcı Adı", "Tarih", "Saat"];
+
+  const timestamp = new Date(record.timestamp);
+  const rowArr = [
+    record.id,
+    record.barcode,
+    ...ef.map(f => record.customFields?.[f.id] ?? ""),
+    record.customer || "",
+    record.scanned_by,
+    record.scanned_by_username,
+    timestamp.toLocaleDateString("tr-TR"),
+    timestamp.toLocaleTimeString("tr-TR")
+  ];
+
+  // Use sheetsUpdate for upsert behavior (Apps Script handles both create and update)
+  await sheetsUpdate(cfg, headers, rowArr);
+}

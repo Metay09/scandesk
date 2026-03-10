@@ -179,6 +179,41 @@ export default function App() {
         setShiftTakeovers(st.shiftTakeovers);
       }
 
+      // Restore active session if it exists and is still valid
+      if (st?.activeSession) {
+        const { username, loginShift } = st.activeSession;
+        const foundUser = loadedUsers.find(u => u.username === username);
+
+        if (foundUser) {
+          // Check if session is still valid (shift hasn't expired beyond grace period)
+          let sessionValid = true;
+
+          if (foundUser.role !== "admin" && loginShift) {
+            const currentShift = getCurrentShift();
+
+            // If shift has changed, check if grace period has expired
+            if (currentShift !== loginShift) {
+              const shiftEnd = getShiftEndTime(loginShift);
+              if (shiftEnd) {
+                const graceEndTime = shiftEnd + (300 * 1000); // 5 minutes grace period
+                const now = Date.now();
+                sessionValid = now < graceEndTime;
+              }
+            }
+          }
+
+          if (sessionValid) {
+            // Restore the user session
+            setUser(foundUser);
+            setUserLoginShift(loginShift);
+            setPage("scan");
+          } else {
+            // Session expired, show logout reason
+            setLogoutReason("shift_expired");
+          }
+        }
+      }
+
       setHydrated(true);
     })();
 
@@ -190,8 +225,14 @@ export default function App() {
   // Persist on changes
   useEffect(() => {
     if (!hydrated) return;
-    saveState({ users, fields, records, lastSaved, custList, settings, integration, shiftTakeovers });
-  }, [hydrated, users, fields, records, lastSaved, custList, settings, integration, shiftTakeovers]);
+    // Create activeSession object if user is logged in
+    const activeSession = user ? {
+      username: user.username,
+      loginShift: userLoginShift,
+      loginAt: new Date().toISOString()
+    } : null;
+    saveState({ users, fields, records, lastSaved, custList, settings, integration, shiftTakeovers, activeSession });
+  }, [hydrated, users, fields, records, lastSaved, custList, settings, integration, shiftTakeovers, user, userLoginShift]);
 
   const { toasts, add: toast } = useToast();
 
@@ -589,7 +630,7 @@ export default function App() {
       {/* CONTENT */}
       <div className="scroll-area">
         {page === "scan"     && <ScanPage fields={fields} onSave={handleSave} onEdit={handleEdit} onSyncUpdate={handleSyncUpdate} records={records} lastSaved={lastSaved} customers={customers} isAdmin={isAdmin} user={user} integration={integration} scanSettings={settings} toast={toast} shiftExpired={graceSecsLeft !== null && !isAdmin} shiftTakeovers={shiftTakeovers} onShiftTakeover={handleShiftTakeover} />}
-        {page === "data"     && <DataPage     fields={fields} records={records} onDelete={handleDelete} onEdit={handleEdit} onExport={handleExport} onImport={handleImport} customers={customers} settings={settings} toast={toast} isAdmin={isAdmin} currentShift={userLoginShift || getCurrentShift()} user={user} />}
+        {page === "data"     && <DataPage     fields={fields} records={records} onDelete={handleDelete} onEdit={handleEdit} onExport={handleExport} onImport={handleImport} customers={customers} settings={settings} toast={toast} isAdmin={isAdmin} currentShift={userLoginShift || getCurrentShift()} user={user} integration={integration} onSyncUpdate={handleSyncUpdate} />}
         {page === "report"   && <ReportPage   records={records} fields={fields} isAdmin={isAdmin} currentShift={userLoginShift || getCurrentShift()} />}
         {page === "fields"   && <FieldsPage   fields={fields} setFields={setFields} isAdmin={isAdmin} settings={settings} />}
         {page === "users"    && isAdmin && <UsersPage users={users} setUsers={setUsers} currentUser={user} toast={toast} />}
