@@ -71,18 +71,18 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
                   type="datetime-local"
                   value={rangeStart}
                   onChange={e => setRangeStart(e.target.value)}
-                  placeholder="ör: 01.01.2026 04:27"
                   style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: rangeStart ? "var(--tx)" : "var(--tx2)", border: "1.5px solid var(--brd)", fontSize: 12 }}
                 />
+                <div style={{ fontSize: 10, color: "var(--tx2)", marginTop: 3, paddingLeft: 2 }}>ör: 01.01.2026 04:27</div>
               </div>
               <div style={{ flex: 1 }}>
                 <input
                   type="datetime-local"
                   value={rangeEnd}
                   onChange={e => setRangeEnd(e.target.value)}
-                  placeholder="ör: 01.02.2026 04:27"
                   style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: rangeEnd ? "var(--tx)" : "var(--tx2)", border: "1.5px solid var(--brd)", fontSize: 12 }}
                 />
+                <div style={{ fontSize: 10, color: "var(--tx2)", marginTop: 3, paddingLeft: 2 }}>ör: 01.02.2026 04:27</div>
               </div>
             </div>
             <button className="btn btn-danger" disabled={!rangeStart || !rangeEnd} onClick={() => {
