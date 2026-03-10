@@ -123,7 +123,7 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
                 <b>2.</b> Project Settings → API → URL ve anon key kopyala<br />
                 <b>3.</b> SQL Editor'de şu komutu çalıştır:<br />
                 <textarea readOnly rows={5} style={{ marginTop: 8, fontSize: 10, fontFamily: "var(--mono)", background: "rgba(0,0,0,.3)", border: "1px solid var(--brd)", borderRadius: "var(--r)", padding: 8, color: "var(--tx)" }}
-                  value={`CREATE TABLE taramalar (\n  barcode text,\n  customer text,\n  scanned_by text,\n  scanned_by_username text,\n  timestamp timestamptz,\n  qty text, note text\n);`} />
+                  value={`CREATE TABLE taramalar (\n  id text PRIMARY KEY,\n  barcode text,\n  customer text,\n  shift text,\n  scanned_by text,\n  scanned_by_username text,\n  timestamp timestamptz,\n  qty text, note text\n);`} />
               </div>
               <div><label className="lbl">Project URL</label><input placeholder="https://xxxx.supabase.co" value={sb.url} onChange={e => setSb(p => ({ ...p, url: e.target.value }))} /></div>
               <div><label className="lbl">Anon Key</label><PasswordInput value={sb.key} onChange={e => setSb(p => ({ ...p, key: e.target.value }))} placeholder="eyJhbGci..." /></div>
@@ -146,7 +146,7 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
                 <b>1.</b> Google E-Tablolar'da yeni tablo aç<br />
                 <b>2.</b> Uzantılar → Apps Script → şu kodu yapıştır:
                 <textarea readOnly rows={8} style={{ marginTop: 8, fontSize: 10, fontFamily: "var(--mono)", background: "rgba(0,0,0,.3)", border: "1px solid var(--brd)", borderRadius: "var(--r)", padding: 8, color: "var(--tx)" }}
-                  value={`const SHEET_ID = "BURAYA_SHEET_ID_YAPI\u015ATIR";\n\nfunction doPost(e) {\n  const d = JSON.parse(e.postData.contents);\n  const ss = SpreadsheetApp.openById(SHEET_ID);\n  const sh = ss.getSheetByName("Taramalar")\n    || ss.insertSheet("Taramalar");\n  if (sh.getLastRow() === 0) sh.appendRow(d.headers);\n  sh.appendRow(d.row);\n  return ContentService.createTextOutput("OK");\n}`} />
+                  value={`const SHEET_ID = "BURAYA_SHEET_ID_YAPI\u015ATIR";\n\nfunction doPost(e) {\n  const d = JSON.parse(e.postData.contents);\n  // d.row[0] = record id; d.row[1..] = barcode, fields, customer, ...\n  // d.headers = ["Barkod", fields..., "Müşteri", ...] (no id — added below)\n  const ss = SpreadsheetApp.openById(SHEET_ID);\n  const sh = ss.getSheetByName("Taramalar")\n    || ss.insertSheet("Taramalar");\n  if (sh.getLastRow() === 0) {\n    sh.appendRow(["id", ...d.headers]);\n  } else {\n    // Skip duplicate: id is the first element of d.row\n    const ids = sh.getRange(2, 1, Math.max(sh.getLastRow()-1,1), 1).getValues().flat();\n    if (ids.includes(d.row[0])) return ContentService.createTextOutput("DUPLICATE");\n  }\n  sh.appendRow(d.row);\n  return ContentService.createTextOutput("OK");\n}`} />
                 <b>3.</b> Dağıt → Web uygulaması → Erişim: <b>Herkes</b><br />
                 <b>4.</b> Oluşan URL'yi aşağıya yapıştır
               </div>

@@ -12,7 +12,10 @@ export async function loadState() {
     }
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
+  } catch (err) {
+    console.error("loadState failed:", err);
+    return null;
+  }
 }
 
 export async function saveState(state) {
@@ -20,5 +23,7 @@ export async function saveState(state) {
     const raw = JSON.stringify(state);
     if (isNative()) await Preferences.set({ key: STORAGE_KEY, value: raw });
     else localStorage.setItem(STORAGE_KEY, raw);
-  } catch {}
+  } catch (err) {
+    console.error("saveState failed:", err);
+  }
 }

@@ -7,6 +7,8 @@ export async function supabaseInsert(cfg, row) {
   if (!r.ok) throw new Error(`Supabase ${r.status}: ${await r.text()}`);
 }
 
+// Note: Google Apps Script requires mode:"no-cors" which returns an opaque response.
+// The promise resolves when the request is sent; server-side errors cannot be detected from the client.
 export async function sheetsInsert(cfg, headers, row) {
   await fetch(cfg.scriptUrl, {
     method: "POST", mode: "no-cors",
