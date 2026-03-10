@@ -8,6 +8,7 @@ import "./index.css";
 import { INITIAL_USERS, INITIAL_SETTINGS, INITIAL_FIELDS, DEFAULT_CUSTS } from "./constants";
 import { isNative, loadState, saveState } from "./services/storage";
 import { getCurrentShift, pad2, deriveShiftDate, getShiftDate, getShiftEndTime } from "./utils";
+import { normalizeRecord, migrateRecords, flattenRecordForExport } from "./services/recordModel";
 import { useToast } from "./hooks/useToast";
 import { Ic, I } from "./components/Icon";
 import Login from "./components/Login";
@@ -50,9 +51,11 @@ export default function App() {
     return shiftDate ? { ...rec, shiftDate } : { ...rec };
   }, []);
 
-  const normalizeRecords = useCallback((list) => {
-    return Array.isArray(list) ? list.map(addShiftDate) : [];
-  }, [addShiftDate]);
+  const normalizeRecordsWithModel = useCallback((list) => {
+    if (!Array.isArray(list)) return [];
+    // Migrate records to new model (fixed fields + customFields) and add shiftDate
+    return migrateRecords(list, fields).map(addShiftDate);
+  }, [addShiftDate, fields]);
 
   // Apply theme to document
   useEffect(() => {
@@ -128,8 +131,12 @@ export default function App() {
       if (st && typeof st === "object") {
         if (Array.isArray(st.users) && st.users.length) setUsers(st.users);
         if (Array.isArray(st.fields) && st.fields.length) setFields(st.fields);
-        if (Array.isArray(st.records)) setRecords(normalizeRecords(st.records));
-        if (st.lastSaved) setLastSaved(addShiftDate(st.lastSaved));
+        // Migrate and normalize records to new structure on load
+        if (Array.isArray(st.records)) setRecords(normalizeRecordsWithModel(st.records));
+        if (st.lastSaved) {
+          const normalized = normalizeRecord(st.lastSaved, st.fields || fields);
+          setLastSaved(addShiftDate(normalized));
+        }
         if (Array.isArray(st.custList) && st.custList.length) setCustList(st.custList);
         if (st.settings) {
           setSettings(st.settings);
@@ -144,7 +151,7 @@ export default function App() {
       });
       setHydrated(true);
     })();
-  }, [addShiftDate, normalizeRecords]);
+  }, [addShiftDate, normalizeRecordsWithModel, fields]);
 
   // Persist on changes
   useEffect(() => {
@@ -237,16 +244,22 @@ export default function App() {
   }, [graceEndTime, user, handleLogout]);
 
   const handleSave   = useCallback(r => {
-    const rec = addShiftDate(r);
+    // Normalize the record to ensure it follows the new structure
+    const normalized = normalizeRecord(r, fields);
+    const rec = addShiftDate(normalized);
     setRecords(p => [rec, ...p]);
     setLastSaved(rec);
-  }, [addShiftDate]);
+  }, [addShiftDate, fields]);
   const handleSyncUpdate = useCallback(id => {
     setRecords(p => p.map(r => r.id === id ? { ...r, synced: true } : r));
   }, []);
   const handleDelete = id => { setRecords(p => p.filter(r => r.id !== id)); setLastSaved(p => (p && p.id === id ? null : p)); toast("Kayıt silindi", "var(--err)"); };
   const handleEdit   = r  => {
-    const rec = addShiftDate(r);
+    // Normalize the edited record
+    const normalized = normalizeRecord(r, fields);
+    const rec = addShiftDate(normalized);
+    // Update the updatedAt timestamp
+    rec.updatedAt = new Date().toISOString();
     setRecords(p => p.map(x => x.id === rec.id ? rec : x));
     toast("Güncellendi", "var(--inf)");
   };
@@ -278,6 +291,16 @@ export default function App() {
       return JSON.stringify(val);
     };
 
+    // Helper to get field value from record (supports both customFields and root level)
+    const getFieldValue = (record, fieldId) => {
+      // Check customFields first
+      if (record.customFields && fieldId in record.customFields) {
+        return record.customFields[fieldId];
+      }
+      // Fallback to root level
+      return record[fieldId];
+    };
+
     const data = recs.map(r => {
       try {
         const d = new Date(r.timestamp);
@@ -287,7 +310,7 @@ export default function App() {
 
         return [
           safeValue(r.barcode),
-          ...ef.map(f => safeValue(r[f.id])),
+          ...ef.map(f => safeValue(getFieldValue(r, f.id))),
           safeValue(r.customer),
           safeValue(r.scanned_by),
           safeValue(r.scanned_by_username),
@@ -353,7 +376,8 @@ export default function App() {
 
   const handleImport = (imported) => {
     if (!imported.length) { toast("İçe aktarılacak veri yok", "var(--acc)"); return; }
-    const normalized = normalizeRecords(imported);
+    // Migrate imported records to new structure
+    const normalized = normalizeRecordsWithModel(imported);
     setRecords(p => [...normalized, ...p]);
     toast(`✓ ${normalized.length} kayıt içe aktarıldı`, "var(--ok)");
   };

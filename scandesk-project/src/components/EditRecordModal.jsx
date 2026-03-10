@@ -4,12 +4,33 @@ import FieldInput from "./FieldInput";
 import CustomerPicker from "./CustomerPicker";
 import { useFormState } from "../hooks/useFormState";
 import { getCustomerList } from "../utils";
+import { getDynamicFieldValue, setDynamicFieldValue } from "../services/recordModel";
 
 export default function EditRecordModal({ record, fields, customers, onSave, onClose, canManageCustomers = false }) {
   const [form, set] = useFormState({ ...record });
   const allF = [{ id: "barcode", label: "Barkod", type: "Metin", readonly: true }, ...fields.filter(f => f.id !== "barcode")];
   const customerList = getCustomerList(customers);
   const normalizeCustomer = (val) => val === "-Boş-" ? "" : val;
+
+  // Handler to set dynamic field values in customFields
+  const setFieldValue = (fieldId, value) => {
+    if (fieldId === "barcode" || fieldId === "customer") {
+      // Fixed fields go to root
+      set(fieldId, value);
+    } else {
+      // Dynamic fields go to customFields
+      const updated = setDynamicFieldValue(form, fieldId, value);
+      set("customFields", updated.customFields);
+    }
+  };
+
+  // Helper to get field value (supports both customFields and root level)
+  const getFieldValue = (fieldId) => {
+    if (fieldId === "barcode" || fieldId === "customer") {
+      return form[fieldId];
+    }
+    return getDynamicFieldValue(form, fieldId);
+  };
 
   const footer = (
     <>
@@ -25,7 +46,7 @@ export default function EditRecordModal({ record, fields, customers, onSave, onC
       {allF.map(f => (
         <div key={f.id}>
           <label className="lbl">{f.label}</label>
-          <FieldInput field={f} value={form[f.id]} onChange={(v) => set(f.id, v)} />
+          <FieldInput field={f} value={getFieldValue(f.id)} onChange={(v) => setFieldValue(f.id, v)} />
         </div>
       ))}
       <div>

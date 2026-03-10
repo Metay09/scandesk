@@ -5,6 +5,7 @@ import EditRecordModal from "./EditRecordModal";
 import Modal from "./Modal";
 import { genId } from "../constants";
 import { toggleSetMember, deriveShiftDate, getShiftDate } from "../utils";
+import { getDynamicFieldValue } from "../services/recordModel";
 
 export default function DataPage({ fields, records, onDelete, onEdit, onExport, onImport, customers, settings, toast, isAdmin, currentShift, user }) {
   const [q, setQ]           = useState("");
@@ -46,13 +47,31 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
         labelMap["vardiya"] = "shift";
         labelMap["vardiya id"] = "shiftId";
         labelMap["shiftid"] = "shiftId";
+
+        // Fixed system fields that go to root level
+        const fixedFields = ["barcode", "customer", "scanned_by", "scanned_by_username", "date", "time", "shift", "shiftId", "timestamp"];
+
         const imported = rows.map(row => {
-          const rec = { id: genId(), synced: false };
+          const rec = { id: genId(), synced: false, customFields: {} };
           Object.entries(row).forEach(([col, val]) => {
             const fid = labelMap[col.toLowerCase().trim()];
-            if (fid) rec[fid] = String(val ?? "");
+            if (fid && fixedFields.includes(fid)) {
+              // It's a fixed field - put it at root level
+              rec[fid] = String(val ?? "");
+            } else if (fid) {
+              // It's a dynamic field - put it in customFields
+              rec.customFields[fid] = String(val ?? "");
+            } else {
+              // Unknown column - treat as dynamic field to preserve data
+              const cleanCol = col.trim();
+              if (cleanCol) {
+                rec.customFields[cleanCol] = String(val ?? "");
+              }
+            }
           });
+
           if (!rec.barcode) return null;
+
           // Build timestamp from date+time columns if available, otherwise use now
           if (rec.date && rec.time) {
             const parsed = new Date(`${rec.date}T${rec.time}`);
@@ -62,6 +81,15 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
           }
           if (!rec.date) rec.date = rec.timestamp.slice(0, 10);
           if (!rec.time) rec.time = rec.timestamp.slice(11, 16);
+
+          // Set other required fields with defaults
+          rec.syncStatus = "pending";
+          rec.syncError = "";
+          rec.source = "import";
+          rec.inheritedFromShift = "";
+          rec.createdAt = rec.timestamp;
+          rec.updatedAt = rec.timestamp;
+
           rec.shiftDate = getShiftDate(rec.timestamp || rec.date, rec.shift);
           return rec;
         }).filter(Boolean);
@@ -133,9 +161,22 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
     : records.filter(r => r.shift === currentShift && deriveShiftDate(r) === currentShiftDate);
   const filtered = visibleRecords.filter(r => {
     if (!q) return true;
-    return [...allF, { id: "customer" }, { id: "scanned_by" }, { id: "shift" }].some(f =>
-      String(r[f.id] ?? "").toLowerCase().includes(q.toLowerCase())
-    );
+    // Search in fixed fields and customFields
+    const searchInFixed = [...allF, { id: "customer" }, { id: "scanned_by" }, { id: "shift" }].some(f => {
+      const val = f.id === "barcode" || f.id === "customer" || f.id === "scanned_by" || f.id === "shift"
+        ? r[f.id]
+        : getDynamicFieldValue(r, f.id);
+      return String(val ?? "").toLowerCase().includes(q.toLowerCase());
+    });
+
+    // Also search in all customFields values
+    if (!searchInFixed && r.customFields && typeof r.customFields === 'object') {
+      return Object.values(r.customFields).some(val =>
+        String(val ?? "").toLowerCase().includes(q.toLowerCase())
+      );
+    }
+
+    return searchInFixed;
   });
   const groups = {};
   filtered.forEach(r => { const k = r.customer || "(Müşteri yok)"; if (!groups[k]) groups[k] = []; groups[k].push(r); });
@@ -147,8 +188,8 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
       {allF.map(f => (
         <td key={f.id}>
           {f.id === "barcode" ? <span className="bc">{r[f.id]}</span>
-           : f.type === "Onay Kutusu" ? <span className={`badge ${r[f.id] ? "badge-ok" : ""}`} style={!r[f.id] ? { color: "var(--tx3)" } : {}}>{r[f.id] ? "✓" : "—"}</span>
-           : r[f.id] || <span style={{ color: "var(--tx3)" }}>—</span>}
+           : f.type === "Onay Kutusu" ? <span className={`badge ${getDynamicFieldValue(r, f.id) ? "badge-ok" : ""}`} style={!getDynamicFieldValue(r, f.id) ? { color: "var(--tx3)" } : {}}>{getDynamicFieldValue(r, f.id) ? "✓" : "—"}</span>
+           : getDynamicFieldValue(r, f.id) || <span style={{ color: "var(--tx3)" }}>—</span>}
         </td>
       ))}
       {showCust && <td style={{ color: "var(--inf)", fontWeight: 600, fontSize: 12 }}>{r.customer || "—"}</td>}
