@@ -9,7 +9,7 @@ import ShiftInheritModal from "./ShiftInheritModal";
 import ShiftTakeoverPrompt from "./ShiftTakeoverPrompt";
 import FieldInput from "./FieldInput";
 
-export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, customers, isAdmin, user, integration, scanSettings, toast, shiftExpired = false, shiftTakeovers = {}, onShiftTakeover }) {
+export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records, lastSaved, customers, isAdmin, user, integration, scanSettings, toast, shiftExpired = false, shiftTakeovers = {}, onShiftTakeover }) {
   const customerList = getCustomerList(customers);
   const normalizeCustomer = (val) => val === "-Boş-" ? "" : val;
   const inputRef  = useRef(null);
@@ -240,11 +240,20 @@ export default function ScanPage({ fields, onSave, onEdit, records, lastSaved, c
     if (integration.active) {
       const ef = fields.filter(f => f.id !== "barcode");
       const headers = ["Barkod", ...ef.map(f => f.label), "Müşteri", "Kaydeden", "Kullanıcı Adı", "Tarih", "Saat"];
-      const rowArr  = [bc, ...ef.map(f => row[f.id] ?? ""), row.customer, row.scanned_by, row.scanned_by_username, now.toLocaleDateString("tr-TR"), now.toLocaleTimeString("tr-TR")];
-      if (integration.type === "supabase") supabaseInsert(integration.supabase, { ...row, id: undefined }).catch(e => toast("Supabase hatası: " + e.message, "var(--err)"));
-      else sheetsInsert(integration.gsheets, headers, rowArr).catch(e => toast("Sheets hatası: " + e.message, "var(--err)"));
+      const rowArr  = [row.id, bc, ...ef.map(f => row[f.id] ?? ""), row.customer, row.scanned_by, row.scanned_by_username, now.toLocaleDateString("tr-TR"), now.toLocaleTimeString("tr-TR")];
+      if (integration.type === "supabase") {
+        supabaseInsert(integration.supabase, row)
+          .then(() => onSyncUpdate?.(row.id))
+          .catch(e => toast("Supabase hatası: " + e.message, "var(--err)"));
+      } else {
+        // no-cors: fetch resolves with opaque response regardless of server outcome;
+        // synced:true means the request was sent, not that the server confirmed it.
+        sheetsInsert(integration.gsheets, headers, rowArr)
+          .then(() => onSyncUpdate?.(row.id))
+          .catch(e => toast("Sheets hatası: " + e.message, "var(--err)"));
+      }
     }
-  }, [customer, extras, fields, user, onSave, scheduleFocus, vibration, beep, integration, toast, records, isAdmin, adminShift, shiftExpired]);
+  }, [customer, extras, fields, user, onSave, onSyncUpdate, scheduleFocus, vibration, beep, integration, toast, records, isAdmin, adminShift, shiftExpired]);
 
   const doSave = useCallback(() => {
     if (pendingBc) doSaveCode(pendingBc, extras);
