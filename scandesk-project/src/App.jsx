@@ -9,6 +9,7 @@ import { INITIAL_USERS, INITIAL_SETTINGS, INITIAL_FIELDS, DEFAULT_CUSTS } from "
 import { isNative, loadState, saveState } from "./services/storage";
 import { getCurrentShift, pad2, deriveShiftDate, getShiftDate, getShiftEndTime } from "./utils";
 import { normalizeRecord, migrateRecords } from "./services/recordModel";
+import { sheetsUpdate, sheetsDelete } from "./services/integrations";
 import { useToast } from "./hooks/useToast";
 import { Ic, I } from "./components/Icon";
 import Login from "./components/Login";
@@ -294,7 +295,27 @@ export default function App() {
       };
     }));
   }, []);
-  const handleDelete = id => { setRecords(p => p.filter(r => r.id !== id)); setLastSaved(p => (p && p.id === id ? null : p)); toast("Kayıt silindi", "var(--err)"); };
+  const handleDelete = id => {
+    setRecords(p => p.filter(r => r.id !== id));
+    setLastSaved(p => (p && p.id === id ? null : p));
+    toast("Kayıt silindi", "var(--err)");
+
+    // Sync deletion to Google Sheets if integration is active
+    if (integration.active && integration.type === "gsheets") {
+      // Note: no-cors fetch returns opaque response - cannot detect server errors
+      // Apps Script will delete the row with matching id
+      sheetsDelete(integration.gsheets, id)
+        .then(() => {
+          // Request sent successfully (but server response unknown due to no-cors)
+          // No need to update sync status as record is already deleted locally
+        })
+        .catch(e => {
+          // Network error or request failed to send
+          // Record already deleted locally, just log the error
+          toast("Sheets silme hatası: " + e.message, "var(--err)");
+        });
+    }
+  };
   const handleEdit   = r  => {
     // Normalize the edited record
     const normalized = normalizeRecord(r, fields);
@@ -303,6 +324,37 @@ export default function App() {
     rec.updatedAt = new Date().toISOString();
     setRecords(p => p.map(x => x.id === rec.id ? rec : x));
     toast("Güncellendi", "var(--inf)");
+
+    // Sync update to Google Sheets if integration is active
+    if (integration.active && integration.type === "gsheets") {
+      const ef = fields.filter(f => f.id !== "barcode");
+      const headers = ["Barkod", ...ef.map(f => f.label), "Müşteri", "Kaydeden", "Kullanıcı Adı", "Tarih", "Saat"];
+      // Flatten customFields for sync payload - id is first element
+      const timestamp = new Date(rec.timestamp);
+      const rowArr = [
+        rec.id,
+        rec.barcode,
+        ...ef.map(f => rec.customFields?.[f.id] ?? ""),
+        rec.customer,
+        rec.scanned_by,
+        rec.scanned_by_username,
+        timestamp.toLocaleDateString("tr-TR"),
+        timestamp.toLocaleTimeString("tr-TR")
+      ];
+
+      // Note: no-cors fetch returns opaque response - cannot detect server errors
+      // Apps Script will update the existing row with matching id
+      sheetsUpdate(integration.gsheets, headers, rowArr)
+        .then(() => {
+          // Request sent successfully (but server response unknown due to no-cors)
+          handleSyncUpdate?.(rec.id, true, null);
+        })
+        .catch(e => {
+          // Network error or request failed to send
+          handleSyncUpdate?.(rec.id, false, e.message);
+          toast("Sheets güncelleme hatası: " + e.message, "var(--err)");
+        });
+    }
   };
   const handleClear  = () => {
     if (window.confirm("Tüm kayıtlar silinecek. Onaylıyor musunuz?")) {
