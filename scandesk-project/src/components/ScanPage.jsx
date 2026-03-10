@@ -3,7 +3,7 @@ import { Ic, I } from "./Icon";
 import { genId } from "../constants";
 import { fmtDate, fmtTime, nowTs, playBeep, getCurrentShift, FIXED_SHIFTS, getCustomerList, getShiftDate, deriveShiftDate } from "../utils";
 import { supabaseInsert, sheetsInsert } from "../services/integrations";
-import { getDynamicFieldValue } from "../services/recordModel";
+import { getDynamicFieldValue, toDbPayload } from "../services/recordModel";
 import EditRecordModal from "./EditRecordModal";
 import CustomerPicker from "./CustomerPicker";
 import ShiftInheritModal from "./ShiftInheritModal";
@@ -262,7 +262,9 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
       // Flatten customFields for sync payload
       const rowArr  = [row.id, bc, ...ef.map(f => row.customFields[f.id] ?? ""), row.customer, row.scanned_by, row.scanned_by_username, now.toLocaleDateString("tr-TR"), now.toLocaleTimeString("tr-TR")];
       if (integration.type === "supabase") {
-        supabaseInsert(integration.supabase, row)
+        // Convert camelCase to snake_case for PostgreSQL compatibility
+        const dbPayload = toDbPayload(row);
+        supabaseInsert(integration.supabase, dbPayload)
           .then(() => onSyncUpdate?.(row.id))
           .catch(e => toast("Supabase hatası: " + e.message, "var(--err)"));
       } else {

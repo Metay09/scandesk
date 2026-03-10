@@ -32,6 +32,34 @@ export const FIXED_FIELDS = [
 // Fields that existed in legacy format but should be moved to customFields
 const LEGACY_DYNAMIC_FIELDS = ['qty', 'note'];
 
+// Field name mapping: Application (camelCase) → Database (snake_case)
+// This mapping ensures PostgreSQL compatibility with standard naming conventions
+const FIELD_TO_DB_MAPPING = {
+  'id': 'id',
+  'barcode': 'barcode',
+  'timestamp': 'timestamp',
+  'date': 'date',
+  'time': 'time',
+  'shift': 'shift',
+  'shiftDate': 'shift_date',
+  'customer': 'customer',
+  'scanned_by': 'scanned_by',
+  'scanned_by_username': 'scanned_by_username',
+  'synced': 'synced',
+  'syncStatus': 'sync_status',
+  'syncError': 'sync_error',
+  'source': 'source',
+  'inheritedFromShift': 'inherited_from_shift',
+  'createdAt': 'created_at',
+  'updatedAt': 'updated_at'
+};
+
+// Reverse mapping: Database (snake_case) → Application (camelCase)
+const DB_TO_FIELD_MAPPING = Object.entries(FIELD_TO_DB_MAPPING).reduce((acc, [appField, dbField]) => {
+  acc[dbField] = appField;
+  return acc;
+}, {});
+
 /**
  * Normalize a record to the new structure (fixed fields + customFields)
  * This handles backward compatibility with old records that have dynamic fields at root level
@@ -98,49 +126,54 @@ export function normalizeRecord(record, fields = []) {
 
 /**
  * Convert normalized record to PostgreSQL payload
+ * Converts camelCase field names to snake_case for database compatibility
  * Fixed fields go to columns, customFields goes to jsonb
  *
- * @param {Object} record - Normalized record
- * @returns {Object} Database payload
+ * @param {Object} record - Normalized record with camelCase fields
+ * @returns {Object} Database payload with snake_case fields
  */
 export function toDbPayload(record) {
   if (!record || typeof record !== 'object') return record;
 
   const payload = {};
 
-  // Copy fixed fields
+  // Convert field names from camelCase to snake_case
   FIXED_FIELDS.forEach(field => {
     if (record[field] !== undefined) {
-      payload[field] = record[field];
+      const dbField = FIELD_TO_DB_MAPPING[field] || field;
+      payload[dbField] = record[field];
     }
   });
 
-  // Add customFields as jsonb
-  payload.customFields = record.customFields || {};
+  // customFields → custom_fields (snake_case for DB)
+  payload.custom_fields = record.customFields || {};
 
   return payload;
 }
 
 /**
  * Convert PostgreSQL record back to application model
+ * Converts snake_case field names from database to camelCase for application
  *
- * @param {Object} dbRecord - Record from database
- * @returns {Object} Application model record
+ * @param {Object} dbRecord - Record from database with snake_case fields
+ * @returns {Object} Application model record with camelCase fields
  */
 export function fromDbPayload(dbRecord) {
   if (!dbRecord || typeof dbRecord !== 'object') return dbRecord;
 
   const record = {};
 
-  // Copy all fixed fields
-  FIXED_FIELDS.forEach(field => {
-    if (dbRecord[field] !== undefined) {
-      record[field] = dbRecord[field];
+  // Convert field names from snake_case to camelCase
+  Object.entries(dbRecord).forEach(([dbField, value]) => {
+    if (dbField === 'custom_fields') {
+      // custom_fields → customFields
+      record.customFields = value || {};
+    } else {
+      // Use mapping if available, otherwise keep as-is
+      const appField = DB_TO_FIELD_MAPPING[dbField] || dbField;
+      record[appField] = value;
     }
   });
-
-  // Extract customFields
-  record.customFields = dbRecord.customFields || {};
 
   return record;
 }
