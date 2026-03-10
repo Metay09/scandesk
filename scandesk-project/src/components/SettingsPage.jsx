@@ -68,34 +68,28 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
             <div style={{ display: "flex", gap: 8 }}>
               <div style={{ flex: 1 }}>
                 <input
-                  type="text"
+                  type="datetime-local"
                   value={rangeStart}
                   onChange={e => setRangeStart(e.target.value)}
-                  placeholder="01.01.2026 04:27"
+                  placeholder="ör: 01.01.2026 04:27"
                   style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: rangeStart ? "var(--tx)" : "var(--tx2)", border: "1.5px solid var(--brd)", fontSize: 12 }}
                 />
               </div>
               <div style={{ flex: 1 }}>
                 <input
-                  type="text"
+                  type="datetime-local"
                   value={rangeEnd}
                   onChange={e => setRangeEnd(e.target.value)}
-                  placeholder="01.02.2026 04:27"
+                  placeholder="ör: 01.02.2026 04:27"
                   style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: rangeEnd ? "var(--tx)" : "var(--tx2)", border: "1.5px solid var(--brd)", fontSize: 12 }}
                 />
               </div>
             </div>
             <button className="btn btn-danger" disabled={!rangeStart || !rangeEnd} onClick={() => {
-              const parseTurkishDate = (str) => {
-                const m = str.trim().match(/^(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})$/);
-                if (!m) return null;
-                const [, day, month, year, hour, min] = m;
-                const d = new Date(`${year}-${month}-${day}T${hour}:${min}:00`);
-                return isNaN(d.getTime()) ? null : d.toISOString();
-              };
-              const a = parseTurkishDate(rangeStart);
-              const b = parseTurkishDate(rangeEnd);
-              if (!a || !b) { toast("Geçerli tarih girin (ör: 01.01.2026 04:27)", "var(--acc)"); return; }
+              const toISO = (v) => { const d = new Date(v); return isNaN(d.getTime()) ? null : d.toISOString(); };
+              const a = toISO(rangeStart);
+              const b = toISO(rangeEnd);
+              if (!a || !b) { toast("Geçerli tarih seçin", "var(--acc)"); return; }
               const n = records.filter(r => r.timestamp >= a && r.timestamp <= b).length;
               if (!n) { toast("Bu aralıkta kayıt yok", "var(--acc)"); return; }
               if (!window.confirm(`${n} kayıt silinecek (seçilen aralık). Onaylıyor musunuz?`)) return;
