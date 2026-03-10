@@ -24,7 +24,7 @@ html,body,#root{height:100%;width:100%;}
   --tx:#111827;--tx2:#6b7280;--tx3:#d1d5db;
 }
 body{background:var(--bg);color:var(--tx);font-family:var(--font);
-  -webkit-text-size-adjust:100%;touch-action:manipulation;overflow-x:hidden;}
+  -webkit-text-size-adjust:100%;touch-action:manipulation;}
 ::-webkit-scrollbar{width:4px;height:4px;}
 ::-webkit-scrollbar-thumb{background:var(--brd2);border-radius:2px;}
 
@@ -72,10 +72,10 @@ label.lbl{display:block;font-size:11px;font-weight:700;color:var(--tx2);
 .login-box{width:100%;max-width:380px;background:var(--s1);border:1.5px solid var(--brd);
   border-radius:var(--r2);padding:36px 28px;box-shadow:0 4px 32px rgba(0,0,0,.5);}
 
-.shell{display:flex;flex-direction:column;height:100dvh;overflow:hidden;}
+.shell{display:flex;flex-direction:column;height:100dvh;overflow-y:hidden;}
 .topbar{display:flex;align-items:center;padding:env(safe-area-inset-top) 14px 0 14px;height:calc(52px + env(safe-area-inset-top));
   background:var(--s1);border-bottom:1.5px solid var(--brd);flex-shrink:0;gap:8px;}
-.scroll-area{flex:1;overflow-y:auto;overflow-x:hidden;}
+.scroll-area{flex:1;overflow-y:auto;}
 .page{padding:14px;max-width:720px;margin:0 auto;padding-bottom:78px;}
 
 .bot-nav{height:62px;background:var(--s1);border-top:1.5px solid var(--brd);
