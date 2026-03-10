@@ -127,6 +127,11 @@ export default function App() {
   useEffect(() => {
     let alive = true;
 
+    const normalizeLoadedRecords = (list, fieldDefs) => {
+      if (!Array.isArray(list)) return [];
+      return migrateRecords(list, fieldDefs).map(addShiftDate);
+    };
+
     (async () => {
       const st = await loadState();
       if (!alive) return;
@@ -149,7 +154,7 @@ export default function App() {
       }
 
       if (Array.isArray(st?.records)) {
-        setRecords(normalizeRecordsWithModel(st.records, loadedFields));
+        setRecords(normalizeLoadedRecords(st.records, loadedFields));
       }
 
       if (st?.lastSaved) {
@@ -179,7 +184,7 @@ export default function App() {
     return () => {
       alive = false;
     };
-  }, [addShiftDate, normalizeRecordsWithModel]);
+  }, [addShiftDate]);
 
   // Persist on changes
   useEffect(() => {
