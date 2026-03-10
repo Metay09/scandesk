@@ -5,7 +5,7 @@ import EditRecordModal from "./EditRecordModal";
 import Modal from "./Modal";
 import { genId } from "../constants";
 import { toggleSetMember, deriveShiftDate, getShiftDate } from "../utils";
-import { getDynamicFieldValue } from "../services/recordModel";
+import { getDynamicFieldValue, FIXED_FIELDS } from "../services/recordModel";
 
 export default function DataPage({ fields, records, onDelete, onEdit, onExport, onImport, customers, settings, toast, isAdmin, currentShift, user }) {
   const [q, setQ]           = useState("");
@@ -45,17 +45,26 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
         labelMap["tarih"] = "date";
         labelMap["saat"] = "time";
         labelMap["vardiya"] = "shift";
-        labelMap["vardiya id"] = "shiftId";
-        labelMap["shiftid"] = "shiftId";
+        labelMap["vardiya tarihi"] = "shiftDate";
+        labelMap["shiftdate"] = "shiftDate";
+        // System fields for import/export round-trip
+        labelMap["id"] = "id";
+        labelMap["timestamp"] = "timestamp";
+        labelMap["senkronize"] = "synced";
+        labelMap["senkronizasyon durumu"] = "syncStatus";
+        labelMap["kaynak"] = "source";
+        labelMap["oluşturulma"] = "createdAt";
+        labelMap["olusturulma"] = "createdAt";
+        labelMap["güncellenme"] = "updatedAt";
+        labelMap["guncellenme"] = "updatedAt";
 
-        // Fixed system fields that go to root level
-        const fixedFields = ["barcode", "customer", "scanned_by", "scanned_by_username", "date", "time", "shift", "shiftId", "timestamp"];
+        // Use FIXED_FIELDS from recordModel for consistency
 
         const imported = rows.map(row => {
           const rec = { id: genId(), synced: false, customFields: {} };
           Object.entries(row).forEach(([col, val]) => {
             const fid = labelMap[col.toLowerCase().trim()];
-            if (fid && fixedFields.includes(fid)) {
+            if (fid && FIXED_FIELDS.includes(fid)) {
               // It's a fixed field - put it at root level
               rec[fid] = String(val ?? "");
             } else if (fid) {
@@ -72,23 +81,26 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
 
           if (!rec.barcode) return null;
 
-          // Build timestamp from date+time columns if available, otherwise use now
-          if (rec.date && rec.time) {
-            const parsed = new Date(`${rec.date}T${rec.time}`);
-            rec.timestamp = isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
-          } else {
-            rec.timestamp = new Date().toISOString();
+          // Build timestamp from date+time columns if available, or use imported timestamp
+          if (!rec.timestamp) {
+            if (rec.date && rec.time) {
+              const parsed = new Date(`${rec.date}T${rec.time}`);
+              rec.timestamp = isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+            } else {
+              rec.timestamp = new Date().toISOString();
+            }
           }
           if (!rec.date) rec.date = rec.timestamp.slice(0, 10);
           if (!rec.time) rec.time = rec.timestamp.slice(11, 16);
 
-          // Set other required fields with defaults
-          rec.syncStatus = "pending";
-          rec.syncError = "";
-          rec.source = "import";
-          rec.inheritedFromShift = "";
-          rec.createdAt = rec.timestamp;
-          rec.updatedAt = rec.timestamp;
+          // Set other required fields with defaults (preserve if imported)
+          if (!rec.syncStatus) rec.syncStatus = "pending";
+          if (!rec.syncError) rec.syncError = "";
+          if (!rec.source) rec.source = "import";
+          if (!rec.inheritedFromShift) rec.inheritedFromShift = "";
+          // Preserve original timestamps if they exist, otherwise use current timestamp
+          if (!rec.createdAt) rec.createdAt = rec.timestamp;
+          if (!rec.updatedAt) rec.updatedAt = rec.timestamp;
 
           rec.shiftDate = getShiftDate(rec.timestamp || rec.date, rec.shift);
           return rec;

@@ -280,7 +280,13 @@ export default function App() {
     const recs = Array.isArray(ids) && ids.length ? records.filter(r => ids.includes(r.id)) : records;
     if (!recs.length) { toast("Dışa aktarılacak kayıt yok", "var(--acc)"); return; }
     const ef = fields.filter(f => f.id !== "barcode");
-    const hdr = ["Barkod", ...ef.map(f => f.label), "Müşteri", "Kaydeden", "Kullanıcı Adı", "Tarih", "Saat"];
+
+    // Export includes system fields for full data preservation
+    const hdr = [
+      "ID", "Barkod", ...ef.map(f => f.label), "Müşteri", "Kaydeden", "Kullanıcı Adı",
+      "Tarih", "Saat", "Vardiya", "Vardiya Tarihi", "Timestamp",
+      "Senkronize", "Senkronizasyon Durumu", "Kaynak", "Oluşturulma", "Güncellenme"
+    ];
 
     // Helper to safely get field value while preserving data types
     const safeValue = (val) => {
@@ -309,13 +315,22 @@ export default function App() {
         const timeOut = isValidDate ? d.toLocaleTimeString("tr-TR") : "";
 
         return [
+          safeValue(r.id),
           safeValue(r.barcode),
           ...ef.map(f => safeValue(getFieldValue(r, f.id))),
           safeValue(r.customer),
           safeValue(r.scanned_by),
           safeValue(r.scanned_by_username),
           dateOut,
-          timeOut
+          timeOut,
+          safeValue(r.shift),
+          safeValue(r.shiftDate),
+          safeValue(r.timestamp),
+          safeValue(r.synced),
+          safeValue(r.syncStatus),
+          safeValue(r.source),
+          safeValue(r.createdAt),
+          safeValue(r.updatedAt)
         ];
       } catch (err) {
         console.error("Error processing record:", r, err);
