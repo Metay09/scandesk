@@ -265,14 +265,29 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
         // Convert camelCase to snake_case for PostgreSQL compatibility
         const dbPayload = toDbPayload(row);
         supabaseInsert(integration.supabase, dbPayload)
-          .then(() => onSyncUpdate?.(row.id))
-          .catch(e => toast("Supabase hatası: " + e.message, "var(--err)"));
+          .then(() => {
+            // Success: mark as synced
+            onSyncUpdate?.(row.id, true, null);
+          })
+          .catch(e => {
+            // Failure: mark as failed with error
+            onSyncUpdate?.(row.id, false, e.message);
+            toast("Supabase hatası: " + e.message, "var(--err)");
+          });
       } else {
-        // no-cors: fetch resolves with opaque response regardless of server outcome;
-        // synced:true means the request was sent, not that the server confirmed it.
+        // Google Sheets with no-cors mode
+        // Note: no-cors fetch returns opaque response - cannot detect server errors
+        // We can only mark as "synced" when request is sent, not when server confirms
         sheetsInsert(integration.gsheets, headers, rowArr)
-          .then(() => onSyncUpdate?.(row.id))
-          .catch(e => toast("Sheets hatası: " + e.message, "var(--err)"));
+          .then(() => {
+            // Request sent successfully (but server response unknown due to no-cors)
+            onSyncUpdate?.(row.id, true, null);
+          })
+          .catch(e => {
+            // Network error or request failed to send
+            onSyncUpdate?.(row.id, false, e.message);
+            toast("Sheets hatası: " + e.message, "var(--err)");
+          });
       }
     }
   }, [customer, extras, fields, user, onSave, onSyncUpdate, scheduleFocus, vibration, beep, integration, toast, records, isAdmin, adminShift, shiftExpired]);

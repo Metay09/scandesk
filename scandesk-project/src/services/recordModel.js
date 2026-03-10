@@ -34,6 +34,28 @@ const LEGACY_DYNAMIC_FIELDS = ['qty', 'note'];
 
 // Field name mapping: Application (camelCase) → Database (snake_case)
 // This mapping ensures PostgreSQL compatibility with standard naming conventions
+//
+// Complete mapping documentation:
+// Application Model          →  PostgreSQL Column
+// ----------------              ------------------
+// id                        →  id
+// barcode                   →  barcode
+// timestamp                 →  timestamp
+// date                      →  date
+// time                      →  time
+// shift                     →  shift
+// shiftDate                 →  shift_date
+// customer                  →  customer
+// scanned_by                →  scanned_by
+// scanned_by_username       →  scanned_by_username
+// synced                    →  synced
+// syncStatus                →  sync_status
+// syncError                 →  sync_error
+// source                    →  source
+// inheritedFromShift        →  inherited_from_shift
+// createdAt                 →  created_at
+// updatedAt                 →  updated_at
+// customFields              →  custom_fields (JSONB)
 const FIELD_TO_DB_MAPPING = {
   'id': 'id',
   'barcode': 'barcode',
@@ -181,6 +203,13 @@ export function fromDbPayload(dbRecord) {
 /**
  * Flatten record to columnar format for export (Excel/CSV)
  * Expands customFields into individual columns
+ *
+ * NOTE: This utility is currently NOT used by the export logic in App.jsx.
+ * App.jsx has its own inline export transformation that handles:
+ * - ISO 8601 date/time formatting
+ * - System field ordering and labeling
+ * - Type preservation for Excel
+ * This function is kept for potential future use or other export scenarios.
  *
  * @param {Object} record - Normalized record
  * @param {Array} fields - Field definitions
