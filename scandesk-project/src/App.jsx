@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import { App as CapApp } from "@capacitor/app";
@@ -155,6 +155,13 @@ export default function App() {
   const { toasts, add: toast } = useToast();
 
   const isAdmin = user?.role === "admin";
+
+  const visibleRecordsCount = useMemo(() => {
+    if (isAdmin) return records.length;
+    const currentShift = userLoginShift || getCurrentShift();
+    const currentShiftDate = getShiftDate(undefined, currentShift);
+    return records.filter(r => r.shift === currentShift && deriveShiftDate(r) === currentShiftDate).length;
+  }, [isAdmin, records, userLoginShift]);
 
   const handleLogout = useCallback((reason = null) => {
     inGraceRef.current = false;
@@ -418,7 +425,7 @@ export default function App() {
         {NAV.map(n => (
           <button key={n.id} className={`side-item ${page === n.id ? "active" : ""}`} onClick={() => setPage(n.id)}>
             <Ic d={n.icon} s={15} />{n.label}
-            {n.id === "data" && records.length > 0 && <span className="nav-badge" style={{ marginLeft: "auto" }}>{records.length}</span>}
+            {n.id === "data" && visibleRecordsCount > 0 && <span className="nav-badge" style={{ marginLeft: "auto" }}>{visibleRecordsCount}</span>}
             {n.id === "settings" && integration.active && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--ok)", marginLeft: "auto" }} />}
           </button>
         ))}
@@ -448,7 +455,7 @@ export default function App() {
         {NAV.map(n => (
           <button key={n.id} className={`nav-btn ${page === n.id ? "active" : ""}`} onClick={() => setPage(n.id)}>
             <Ic d={n.icon} s={21} />{n.label}
-            {n.id === "data" && records.length > 0 && <span className="nav-badge">{records.length}</span>}
+            {n.id === "data" && visibleRecordsCount > 0 && <span className="nav-badge">{visibleRecordsCount}</span>}
           </button>
         ))}
       </nav>
