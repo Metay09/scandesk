@@ -5,9 +5,9 @@ import PasswordInput from "./PasswordInput";
 
 export default function SettingsPage({ settings, setSettings, integration, setIntegration, isAdmin, onClearData, onDeleteRange, records, toast, user, onLogout, theme, onToggleTheme }) {
   const set = (k, v) => setSettings(p => ({ ...p, [k]: v }));
-  const [sbOpen, setSbOpen] = useState(false);
+  const [pgOpen, setPgOpen] = useState(false);
   const [gsOpen, setGsOpen] = useState(false);
-  const [sb, setSb] = useState({ ...integration.supabase });
+  const [pg, setPg] = useState({ ...integration.postgresApi });
   const [gs, setGs] = useState({ ...integration.gsheets });
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
@@ -116,31 +116,29 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
         {integration.active && (
           <div style={{ margin: "0 0 10px", padding: "10px 12px", background: "var(--ok2)", border: "1.5px solid var(--ok3)", borderRadius: "var(--r)", fontSize: 12, color: "var(--ok)", display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--ok)" }} />
-            Aktif: {integration.type === "supabase" ? "Supabase (PostgreSQL)" : "Google Sheets"}
+            Aktif: {integration.type === "postgres_api" ? "PostgreSQL API" : "Google Sheets"}
             <button className="btn btn-danger btn-sm" style={{ marginLeft: "auto", height: 30 }} onClick={() => setIntegration(p => ({ ...p, active: false }))}>Durdur</button>
           </div>
         )}
-        {/* Supabase */}
+        {/* PostgreSQL API */}
         <div className="int-card">
-          <div className={`int-hd ${sbOpen ? "open" : ""}`} onClick={() => setSbOpen(p => !p)}>
+          <div className={`int-hd ${pgOpen ? "open" : ""}`} onClick={() => setPgOpen(p => !p)}>
             <div style={{ width: 34, height: 34, borderRadius: 8, background: "rgba(62,207,142,.15)", border: "1.5px solid rgba(62,207,142,.3)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ic d={I.cloud} s={17} /></div>
-            <div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: 13 }}>Supabase (PostgreSQL)</div><div style={{ fontSize: 12, color: "var(--tx2)" }}>Gerçek zamanlı veritabanı</div></div>
-            {integration.active && integration.type === "supabase" && <span className="badge badge-ok">AKTİF</span>}
+            <div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: 13 }}>PostgreSQL API</div><div style={{ fontSize: 12, color: "var(--tx2)" }}>Sunucundaki API üzerinden PostgreSQL senkronizasyonu</div></div>
+            {integration.active && integration.type === "postgres_api" && <span className="badge badge-ok">AKTİF</span>}
             <Ic d={I.chevD} s={14} />
           </div>
-          {sbOpen && (
+          {pgOpen && (
             <div className="int-bd">
               <div className="info-box inf" style={{ fontSize: 12 }}>
-                <b>1.</b> supabase.com → yeni proje oluştur<br />
-                <b>2.</b> Project Settings → API → URL ve anon key kopyala<br />
-                <b>3.</b> SQL Editor'de şu komutu çalıştır:<br />
-                <textarea readOnly rows={12} style={{ marginTop: 8, fontSize: 10, fontFamily: "var(--mono)", background: "rgba(0,0,0,.3)", border: "1px solid var(--brd)", borderRadius: "var(--r)", padding: 8, color: "var(--tx)" }}
-                  value={`CREATE TABLE taramalar (\n  id text PRIMARY KEY,\n  barcode text,\n  timestamp timestamptz,\n  date text,\n  time text,\n  shift text,\n  shift_date text,\n  customer text,\n  scanned_by text,\n  scanned_by_username text,\n  synced boolean,\n  sync_status text,\n  sync_error text,\n  source text,\n  source_record_id text,\n  inherited_from_shift text,\n  created_at timestamptz,\n  updated_at timestamptz,\n  custom_fields jsonb\n);`} />
+                <b>Nasıl kullanılır:</b><br />
+                • Sunucu URL'nizi ve API anahtarınızı girin<br />
+                • Kayıtlar otomatik olarak sunucuya senkronize edilir<br />
+                • Bağlantı başarısız olursa kayıtlar kuyruğa alınır ve tekrar denenir
               </div>
-              <div><label className="lbl">Project URL</label><input placeholder="https://xxxx.supabase.co" value={sb.url} onChange={e => setSb(p => ({ ...p, url: e.target.value }))} /></div>
-              <div><label className="lbl">Anon Key</label><PasswordInput value={sb.key} onChange={e => setSb(p => ({ ...p, key: e.target.value }))} placeholder="eyJhbGci..." /></div>
-              <div><label className="lbl">Tablo Adı</label><input placeholder="taramalar" value={sb.table} onChange={e => setSb(p => ({ ...p, table: e.target.value }))} /></div>
-              <button className="btn btn-ok btn-full" onClick={() => { if (!sb.url || !sb.key || !sb.table) { toast("Tüm alanları doldurun", "var(--err)"); return; } setIntegration({ type: "supabase", active: true, supabase: sb, gsheets: gs }); toast("Supabase aktif edildi"); setSbOpen(false); }}><Ic d={I.check} s={15} /> Aktif Et</button>
+              <div><label className="lbl">Server URL</label><input placeholder="https://scandesk-api.simsekhome.site" value={pg.serverUrl} onChange={e => setPg(p => ({ ...p, serverUrl: e.target.value }))} /></div>
+              <div><label className="lbl">API Key</label><PasswordInput value={pg.apiKey} onChange={e => setPg(p => ({ ...p, apiKey: e.target.value }))} placeholder="scandesk_live_xxxxxxxxx" /></div>
+              <button className="btn btn-ok btn-full" onClick={() => { if (!pg.serverUrl || !pg.apiKey) { toast("Tüm alanları doldurun", "var(--err)"); return; } setIntegration({ type: "postgres_api", active: true, postgresApi: pg, gsheets: gs }); toast("PostgreSQL API aktif edildi"); setPgOpen(false); }}><Ic d={I.check} s={15} /> Aktif Et</button>
             </div>
           )}
         </div>
@@ -169,7 +167,7 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
                 <b>4.</b> Oluşan URL'yi aşağıya yapıştır
               </div>
               <div><label className="lbl">Web App URL</label><input placeholder="https://script.google.com/macros/s/..." value={gs.scriptUrl} onChange={e => setGs(p => ({ ...p, scriptUrl: e.target.value }))} /></div>
-              <button className="btn btn-ok btn-full" onClick={() => { if (!gs.scriptUrl) { toast("URL gerekli", "var(--err)"); return; } setIntegration({ type: "gsheets", active: true, supabase: sb, gsheets: gs }); toast("Google Sheets aktif edildi"); setGsOpen(false); }}><Ic d={I.check} s={15} /> Aktif Et</button>
+              <button className="btn btn-ok btn-full" onClick={() => { if (!gs.scriptUrl) { toast("URL gerekli", "var(--err)"); return; } setIntegration({ type: "gsheets", active: true, postgresApi: pg, gsheets: gs }); toast("Google Sheets aktif edildi"); setGsOpen(false); }}><Ic d={I.check} s={15} /> Aktif Et</button>
             </div>
           )}
         </div>

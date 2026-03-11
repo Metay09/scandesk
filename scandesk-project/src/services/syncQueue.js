@@ -1,8 +1,8 @@
 /**
- * Offline Sync Queue for PostgreSQL Integration
+ * Offline Sync Queue for PostgreSQL API Integration
  *
- * This module manages a persistent queue for PostgreSQL sync operations.
- * When PostgreSQL sync fails, operations are queued for retry.
+ * This module manages a persistent queue for PostgreSQL API sync operations.
+ * When PostgreSQL API sync fails, operations are queued for retry.
  * The queue is persisted to local storage and survives app restarts.
  */
 

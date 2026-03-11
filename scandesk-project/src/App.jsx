@@ -9,7 +9,7 @@ import { INITIAL_USERS, INITIAL_SETTINGS, INITIAL_FIELDS, DEFAULT_CUSTS } from "
 import { isNative, loadState, saveState } from "./services/storage";
 import { getCurrentShift, pad2, deriveShiftDate, getShiftDate, getShiftEndTime } from "./utils";
 import { normalizeRecord, migrateRecords } from "./services/recordModel";
-import { sheetsUpdate, sheetsDelete, supabaseInsert, supabaseUpdate, supabaseDelete } from "./services/integrations";
+import { sheetsUpdate, sheetsDelete, postgresApiInsert, postgresApiUpdate, postgresApiDelete } from "./services/integrations";
 import { createQueueItem, addToQueue, removeFromQueue, getPendingItems, getRetryableItems, markAsProcessing, markAsFailed, getQueueStats } from "./services/syncQueue";
 import { toDbPayload } from "./services/recordModel";
 import { useToast } from "./hooks/useToast";
@@ -32,8 +32,8 @@ export default function App() {
   const [custList, setCustList]   = useState(DEFAULT_CUSTS);
   const [settings, setSettings]   = useState(INITIAL_SETTINGS);
   const [integration, setIntegration] = useState({
-    active: false, type: "supabase",
-    supabase: { url: "", key: "", table: "taramalar" },
+    active: false, type: "postgres_api",
+    postgresApi: { serverUrl: "", apiKey: "" },
     gsheets:  { scriptUrl: "" },
   });
   const [hydrated, setHydrated] = useState(false);
@@ -176,7 +176,25 @@ export default function App() {
       }
 
       if (st?.integration) {
-        setIntegration(st.integration);
+        // Migration: convert old supabase config to new postgres_api config
+        let migratedIntegration = st.integration;
+        if (st.integration.type === "supabase" && st.integration.supabase) {
+          migratedIntegration = {
+            ...st.integration,
+            type: "postgres_api",
+            postgresApi: {
+              serverUrl: st.integration.supabase.url || "",
+              apiKey: st.integration.supabase.key || ""
+            },
+            // Keep old supabase config for reference but it won't be used
+            supabase: undefined
+          };
+        }
+        // Ensure postgresApi field exists
+        if (!migratedIntegration.postgresApi) {
+          migratedIntegration.postgresApi = { serverUrl: "", apiKey: "" };
+        }
+        setIntegration(migratedIntegration);
       }
 
       if (st?.shiftTakeovers && typeof st.shiftTakeovers === "object") {
@@ -355,9 +373,9 @@ export default function App() {
     toast("Kayıt silindi", "var(--err)");
 
     // Sync deletion to PostgreSQL if integration is active
-    if (integration.active && integration.type === "supabase" && record) {
+    if (integration.active && integration.type === "postgres_api" && record) {
       // Try to sync immediately
-      supabaseDelete(integration.supabase, id)
+      postgresApiDelete(integration.postgresApi, id)
         .then(() => {
           // Success - no need to update sync status as record is already deleted
         })
@@ -394,10 +412,10 @@ export default function App() {
     toast("Güncellendi", "var(--inf)");
 
     // Sync update to PostgreSQL if integration is active
-    if (integration.active && integration.type === "supabase") {
+    if (integration.active && integration.type === "postgres_api") {
       // Try to sync immediately
       const dbPayload = toDbPayload(rec);
-      supabaseUpdate(integration.supabase, rec.id, dbPayload)
+      postgresApiUpdate(integration.postgresApi, rec.id, dbPayload)
         .then(() => {
           // Success
           handleSyncUpdate?.(rec.id, true, null);
@@ -449,7 +467,7 @@ export default function App() {
 
   // Process sync queue - sync pending items to PostgreSQL
   const processSyncQueue = useCallback(async () => {
-    if (!integration.active || integration.type !== "supabase") {
+    if (!integration.active || integration.type !== "postgres_api") {
       toast("PostgreSQL entegrasyonu aktif değil", "var(--err)");
       return { success: 0, failed: 0 };
     }
@@ -482,16 +500,16 @@ export default function App() {
         // Execute the sync operation
         if (item.action === "create") {
           const dbPayload = toDbPayload(item.payload);
-          await supabaseInsert(integration.supabase, dbPayload);
+          await postgresApiInsert(integration.postgresApi, dbPayload);
           // Update record sync status to synced
           handleSyncUpdate(item.recordId, true, null);
         } else if (item.action === "update") {
           const dbPayload = toDbPayload(item.payload);
-          await supabaseUpdate(integration.supabase, item.recordId, dbPayload);
+          await postgresApiUpdate(integration.postgresApi, item.recordId, dbPayload);
           // Update record sync status to synced
           handleSyncUpdate(item.recordId, true, null);
         } else if (item.action === "delete") {
-          await supabaseDelete(integration.supabase, item.recordId);
+          await postgresApiDelete(integration.postgresApi, item.recordId);
           // Record already deleted locally, no need to update
         }
 
@@ -534,9 +552,9 @@ export default function App() {
       toast("Tüm veriler temizlendi", "var(--err)");
 
       // Sync each deletion to PostgreSQL if integration is active
-      if (integration.active && integration.type === "supabase") {
+      if (integration.active && integration.type === "postgres_api") {
         recordsToDelete.forEach(record => {
-          supabaseDelete(integration.supabase, record.id)
+          postgresApiDelete(integration.postgresApi, record.id)
             .catch(err => {
               // Failed - add to queue for retry
               addToSyncQueue("delete", record.id, record);
@@ -575,9 +593,9 @@ export default function App() {
     setLastSaved(p => (p && (p.timestamp >= a && p.timestamp <= b) ? null : p));
 
     // Sync each deletion to PostgreSQL if integration is active
-    if (integration.active && integration.type === "supabase") {
+    if (integration.active && integration.type === "postgres_api") {
       recordsToDelete.forEach(record => {
-        supabaseDelete(integration.supabase, record.id)
+        postgresApiDelete(integration.postgresApi, record.id)
           .catch(err => {
             // Failed - add to queue for retry
             addToSyncQueue("delete", record.id, record);
@@ -775,7 +793,7 @@ export default function App() {
       <div className="topbar">
         <div className="logo-icon" style={{ width: 28, height: 28, borderRadius: 7 }}><Ic d={I.barcode} s={14} /></div>
         <span style={{ fontSize: 15, fontWeight: 800 }}>ScanDesk</span>
-        {integration.active && integration.type === "supabase" && (
+        {integration.active && integration.type === "postgres_api" && (
           <button
             className="btn btn-ghost btn-sm"
             style={{
@@ -840,7 +858,7 @@ export default function App() {
         <div className="side-logo">
           <div className="logo-icon" style={{ width: 30, height: 30, borderRadius: 8 }}><Ic d={I.barcode} s={14} /></div>
           ScanDesk
-          {integration.active && integration.type === "supabase" && (
+          {integration.active && integration.type === "postgres_api" && (
             <button
               className="btn btn-ghost btn-sm"
               style={{
