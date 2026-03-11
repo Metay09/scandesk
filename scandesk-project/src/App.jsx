@@ -37,7 +37,7 @@ export default function App() {
       serverUrl: "https://scandesk-api.simsekhome.site",
       apiKey: "scandesk_live_7f9c2d1a8b4e6f0c9a2d5e7b1c3f8a6d"
     },
-    gsheets:  { scriptUrl: "" },
+    gsheets:  { scriptUrl: "https://script.google.com/macros/s/AKfycbywRIk85STTKY9oF9H7fu186t1WqAr26qTc_vM2w7kXd_Iq4oYpn7yu3LmPaUOHOqQj/exec" },
   });
   const [hydrated, setHydrated] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem("scandesk_theme") || "dark");
@@ -206,6 +206,17 @@ export default function App() {
           }
           if (!migratedIntegration.postgresApi.apiKey) {
             migratedIntegration.postgresApi.apiKey = "scandesk_live_7f9c2d1a8b4e6f0c9a2d5e7b1c3f8a6d";
+          }
+        }
+        // Ensure gsheets field exists with defaults
+        if (!migratedIntegration.gsheets) {
+          migratedIntegration.gsheets = {
+            scriptUrl: "https://script.google.com/macros/s/AKfycbywRIk85STTKY9oF9H7fu186t1WqAr26qTc_vM2w7kXd_Iq4oYpn7yu3LmPaUOHOqQj/exec"
+          };
+        } else {
+          // Fill in default Google Sheets URL if empty
+          if (!migratedIntegration.gsheets.scriptUrl) {
+            migratedIntegration.gsheets.scriptUrl = "https://script.google.com/macros/s/AKfycbywRIk85STTKY9oF9H7fu186t1WqAr26qTc_vM2w7kXd_Iq4oYpn7yu3LmPaUOHOqQj/exec";
           }
         }
         setIntegration(migratedIntegration);
