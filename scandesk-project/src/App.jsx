@@ -9,7 +9,9 @@ import { INITIAL_USERS, INITIAL_SETTINGS, INITIAL_FIELDS, DEFAULT_CUSTS } from "
 import { isNative, loadState, saveState } from "./services/storage";
 import { getCurrentShift, pad2, deriveShiftDate, getShiftDate, getShiftEndTime } from "./utils";
 import { normalizeRecord, migrateRecords } from "./services/recordModel";
-import { sheetsUpdate, sheetsDelete } from "./services/integrations";
+import { sheetsUpdate, sheetsDelete, supabaseInsert, supabaseUpdate, supabaseDelete } from "./services/integrations";
+import { createQueueItem, addToQueue, removeFromQueue, getPendingItems, markAsProcessing, markAsFailed, getQueueStats } from "./services/syncQueue";
+import { toDbPayload } from "./services/recordModel";
 import { useToast } from "./hooks/useToast";
 import { Ic, I } from "./components/Icon";
 import Login from "./components/Login";
@@ -43,6 +45,8 @@ export default function App() {
   const [shiftTakeovers, setShiftTakeovers] = useState({});
   const [logoutReason, setLogoutReason] = useState(null);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [syncQueue, setSyncQueue] = useState([]);
+  const [isSyncing, setIsSyncing] = useState(false);
   const backPressCountRef = useRef(0);
   const backPressTimerRef = useRef(null);
 
@@ -179,6 +183,10 @@ export default function App() {
         setShiftTakeovers(st.shiftTakeovers);
       }
 
+      if (Array.isArray(st?.syncQueue)) {
+        setSyncQueue(st.syncQueue);
+      }
+
       // Restore active session if it exists and is still valid
       if (st?.activeSession) {
         const { username, loginShift } = st.activeSession;
@@ -231,8 +239,8 @@ export default function App() {
       loginShift: userLoginShift,
       loginAt: new Date().toISOString()
     } : null;
-    saveState({ users, fields, records, lastSaved, custList, settings, integration, shiftTakeovers, activeSession });
-  }, [hydrated, users, fields, records, lastSaved, custList, settings, integration, shiftTakeovers, user, userLoginShift]);
+    saveState({ users, fields, records, lastSaved, custList, settings, integration, shiftTakeovers, activeSession, syncQueue });
+  }, [hydrated, users, fields, records, lastSaved, custList, settings, integration, shiftTakeovers, user, userLoginShift, syncQueue]);
 
   const { toasts, add: toast } = useToast();
 
@@ -341,9 +349,24 @@ export default function App() {
     }));
   }, []);
   const handleDelete = id => {
+    const record = records.find(r => r.id === id);
     setRecords(p => p.filter(r => r.id !== id));
     setLastSaved(p => (p && p.id === id ? null : p));
     toast("Kayıt silindi", "var(--err)");
+
+    // Sync deletion to PostgreSQL if integration is active
+    if (integration.active && integration.type === "supabase" && record) {
+      // Try to sync immediately
+      supabaseDelete(integration.supabase, id)
+        .then(() => {
+          // Success - no need to update sync status as record is already deleted
+        })
+        .catch(err => {
+          // Failed - add to queue for retry
+          addToSyncQueue("delete", id, record);
+          toast("PostgreSQL silme başarısız, kuyruğa eklendi", "var(--acc)");
+        });
+    }
 
     // Sync deletion to Google Sheets if integration is active
     if (integration.active && integration.type === "gsheets") {
@@ -370,6 +393,23 @@ export default function App() {
     setRecords(p => p.map(x => x.id === rec.id ? rec : x));
     toast("Güncellendi", "var(--inf)");
 
+    // Sync update to PostgreSQL if integration is active
+    if (integration.active && integration.type === "supabase") {
+      // Try to sync immediately
+      const dbPayload = toDbPayload(rec);
+      supabaseUpdate(integration.supabase, rec.id, dbPayload)
+        .then(() => {
+          // Success
+          handleSyncUpdate?.(rec.id, true, null);
+        })
+        .catch(err => {
+          // Failed - add to queue for retry
+          handleSyncUpdate?.(rec.id, false, err.message);
+          addToSyncQueue("update", rec.id, rec);
+          toast("PostgreSQL güncelleme başarısız, kuyruğa eklendi", "var(--acc)");
+        });
+    }
+
     // Sync update to Google Sheets if integration is active
     if (integration.active && integration.type === "gsheets") {
       const ef = fields.filter(f => f.id !== "barcode");
@@ -392,15 +432,90 @@ export default function App() {
       sheetsUpdate(integration.gsheets, headers, rowArr)
         .then(() => {
           // Request sent successfully (but server response unknown due to no-cors)
-          handleSyncUpdate?.(rec.id, true, null);
+          // Don't update sync status for Google Sheets
         })
         .catch(e => {
           // Network error or request failed to send
-          handleSyncUpdate?.(rec.id, false, e.message);
           toast("Sheets güncelleme hatası: " + e.message, "var(--err)");
         });
     }
   };
+
+  // Add to PostgreSQL sync queue
+  const addToSyncQueue = useCallback((action, recordId, payload) => {
+    const item = createQueueItem(action, recordId, payload);
+    setSyncQueue(prev => addToQueue(prev, item));
+  }, []);
+
+  // Process sync queue - sync pending items to PostgreSQL
+  const processSyncQueue = useCallback(async () => {
+    if (!integration.active || integration.type !== "supabase") {
+      toast("PostgreSQL entegrasyonu aktif değil", "var(--err)");
+      return { success: 0, failed: 0 };
+    }
+
+    if (isSyncing) {
+      toast("Senkronizasyon zaten devam ediyor", "var(--acc)");
+      return { success: 0, failed: 0 };
+    }
+
+    const pending = getPendingItems(syncQueue);
+    if (pending.length === 0) {
+      toast("Bekleyen senkron işlemi yok", "var(--acc)");
+      return { success: 0, failed: 0 };
+    }
+
+    setIsSyncing(true);
+    let successCount = 0;
+    let failedCount = 0;
+
+    for (const item of pending) {
+      try {
+        // Mark as processing
+        setSyncQueue(prev => markAsProcessing(prev, item.id));
+
+        // Execute the sync operation
+        if (item.action === "create") {
+          const dbPayload = toDbPayload(item.payload);
+          await supabaseInsert(integration.supabase, dbPayload);
+          // Update record sync status to synced
+          handleSyncUpdate(item.recordId, true, null);
+        } else if (item.action === "update") {
+          const dbPayload = toDbPayload(item.payload);
+          await supabaseUpdate(integration.supabase, item.recordId, dbPayload);
+          // Update record sync status to synced
+          handleSyncUpdate(item.recordId, true, null);
+        } else if (item.action === "delete") {
+          await supabaseDelete(integration.supabase, item.recordId);
+          // Record already deleted locally, no need to update
+        }
+
+        // Success - remove from queue
+        setSyncQueue(prev => removeFromQueue(prev, item.id));
+        successCount++;
+      } catch (err) {
+        // Failed - mark as failed in queue
+        setSyncQueue(prev => markAsFailed(prev, item.id, err.message));
+        // Update record sync status to failed
+        if (item.action !== "delete") {
+          handleSyncUpdate(item.recordId, false, err.message);
+        }
+        failedCount++;
+      }
+    }
+
+    setIsSyncing(false);
+
+    // Show result
+    if (failedCount === 0) {
+      toast(`${successCount} işlem senkronize edildi`, "var(--ok)");
+    } else {
+      toast(`${successCount} başarılı, ${failedCount} başarısız`, "var(--err)");
+    }
+
+    return { success: successCount, failed: failedCount };
+  }, [integration, isSyncing, syncQueue, handleSyncUpdate, toast]);
+
   const handleClear  = () => {
     if (window.confirm("Tüm kayıtlar silinecek. Onaylıyor musunuz?")) {
       setRecords([]); setLastSaved(null); toast("Tüm veriler temizlendi", "var(--err)");
@@ -589,6 +704,48 @@ export default function App() {
         <span style={{ flex: 1, textAlign: "center", fontSize: 12, fontWeight: 700, color: "var(--tx2)" }}>
           {NAV.find(n => n.id === page)?.label}
         </span>
+        {page === "data" && integration.active && integration.type === "supabase" && (
+          <button
+            className="btn btn-ghost btn-sm"
+            style={{
+              width: 36,
+              height: 36,
+              padding: 0,
+              flexShrink: 0,
+              position: "relative"
+            }}
+            onClick={processSyncQueue}
+            disabled={isSyncing}
+            title="Bekleyenleri senkronize et"
+          >
+            <Ic
+              d={I.refresh}
+              s={16}
+              style={{
+                animation: isSyncing ? "spin 1s linear infinite" : "none"
+              }}
+            />
+            {getPendingItems(syncQueue).length > 0 && (
+              <span style={{
+                position: "absolute",
+                top: 2,
+                right: 2,
+                background: "var(--err)",
+                color: "#fff",
+                fontSize: 9,
+                fontWeight: 700,
+                borderRadius: "50%",
+                width: 14,
+                height: 14,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center"
+              }}>
+                {getPendingItems(syncQueue).length}
+              </span>
+            )}
+          </button>
+        )}
         <button
           className="btn btn-ghost btn-sm"
           style={{ width: 36, height: 36, padding: 0, flexShrink: 0 }}
@@ -630,8 +787,8 @@ export default function App() {
 
       {/* CONTENT */}
       <div className="scroll-area">
-        {page === "scan"     && <ScanPage fields={fields} onSave={handleSave} onEdit={handleEdit} onSyncUpdate={handleSyncUpdate} records={records} lastSaved={lastSaved} customers={customers} isAdmin={isAdmin} user={user} integration={integration} scanSettings={settings} toast={toast} shiftExpired={graceSecsLeft !== null && !isAdmin} shiftTakeovers={shiftTakeovers} onShiftTakeover={handleShiftTakeover} />}
-        {page === "data"     && <DataPage     fields={fields} records={records} onDelete={handleDelete} onEdit={handleEdit} onExport={handleExport} onImport={handleImport} customers={customers} settings={settings} toast={toast} isAdmin={isAdmin} currentShift={userLoginShift || getCurrentShift()} user={user} integration={integration} onSyncUpdate={handleSyncUpdate} />}
+        {page === "scan"     && <ScanPage fields={fields} onSave={handleSave} onEdit={handleEdit} onSyncUpdate={handleSyncUpdate} records={records} lastSaved={lastSaved} customers={customers} isAdmin={isAdmin} user={user} integration={integration} scanSettings={settings} toast={toast} shiftExpired={graceSecsLeft !== null && !isAdmin} shiftTakeovers={shiftTakeovers} onShiftTakeover={handleShiftTakeover} addToSyncQueue={addToSyncQueue} />}
+        {page === "data"     && <DataPage     fields={fields} records={records} onDelete={handleDelete} onEdit={handleEdit} onExport={handleExport} onImport={handleImport} customers={customers} settings={settings} toast={toast} isAdmin={isAdmin} currentShift={userLoginShift || getCurrentShift()} user={user} integration={integration} onSyncUpdate={handleSyncUpdate} syncQueue={syncQueue} isSyncing={isSyncing} onProcessSyncQueue={processSyncQueue} />}
         {page === "report"   && <ReportPage   records={records} fields={fields} isAdmin={isAdmin} currentShift={userLoginShift || getCurrentShift()} />}
         {page === "fields"   && <FieldsPage   fields={fields} setFields={setFields} isAdmin={isAdmin} settings={settings} />}
         {page === "users"    && isAdmin && <UsersPage users={users} setUsers={setUsers} currentUser={user} toast={toast} />}
