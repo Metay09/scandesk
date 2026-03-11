@@ -6,7 +6,14 @@ import Modal from "./Modal";
 export default function ShiftInheritModal({ currentShift, currentUser, records, onCopy, onClose }) {
   const today = getShiftDate();
 
-  // Stage 1: Shift selection
+  // Calculate yesterday's date
+  const yesterday = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().split('T')[0]; // YYYY-MM-DD format
+  }, []);
+
+  // Stage 1: Shift selection (now includes date+shift combinations)
   // Stage 2: User selection
   // Stage 3: Record selection
   const [stage, setStage] = useState(1);
@@ -16,17 +23,18 @@ export default function ShiftInheritModal({ currentShift, currentUser, records, 
   const defaultSrc = otherShifts[0] || currentShift;
 
   const [sourceShift, setSourceShift] = useState(defaultSrc);
+  const [sourceDate, setSourceDate] = useState(today); // New state for selected date
   const [sourceUser, setSourceUser] = useState(null);
   const [selected, setSelected] = useState(new Set());
   const [customerFilter, setCustomerFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Get users who have records in the selected source shift for today
+  // Get users who have records in the selected source shift for the selected date
   const usersInSourceShift = useMemo(() => {
     const userMap = new Map();
 
     (records || [])
-      .filter(r => r.shift === sourceShift && deriveShiftDate(r) === today)
+      .filter(r => r.shift === sourceShift && deriveShiftDate(r) === sourceDate)
       .forEach(r => {
         const username = r.scanned_by_username;
         const name = r.scanned_by || username;
@@ -46,7 +54,7 @@ export default function ShiftInheritModal({ currentShift, currentUser, records, 
       });
 
     return Array.from(userMap.values()).sort((a, b) => b.count - a.count);
-  }, [records, sourceShift, today]);
+  }, [records, sourceShift, sourceDate]);
 
   // Get records for the selected user in the selected shift
   const userRecords = useMemo(() => {
@@ -68,12 +76,12 @@ export default function ShiftInheritModal({ currentShift, currentUser, records, 
     return (records || [])
       .filter(r =>
         r.shift === sourceShift &&
-        deriveShiftDate(r) === today &&
+        deriveShiftDate(r) === sourceDate &&
         r.scanned_by_username === sourceUser.username &&
         !alreadyTakenSourceIds.has(r.id) // Exclude records already taken over
       )
       .sort((a, b) => (a.timestamp || "").localeCompare(b.timestamp || ""));
-  }, [records, sourceShift, sourceUser, today, currentUser, currentShift]);
+  }, [records, sourceShift, sourceDate, sourceUser, today, currentUser, currentShift]);
 
   // Get unique customers from user records
   const uniqueCustomers = useMemo(() => {
@@ -103,8 +111,9 @@ export default function ShiftInheritModal({ currentShift, currentUser, records, 
     });
   }, [userRecords, customerFilter, searchQuery]);
 
-  const handleShiftSelect = (shift) => {
+  const handleShiftSelect = (shift, date) => {
     setSourceShift(shift);
+    setSourceDate(date);
     setSourceUser(null);
     setSelected(new Set());
     setCustomerFilter("all");
@@ -121,7 +130,7 @@ export default function ShiftInheritModal({ currentShift, currentUser, records, 
     const newRecords = (records || [])
       .filter(r =>
         r.shift === sourceShift &&
-        deriveShiftDate(r) === today &&
+        deriveShiftDate(r) === sourceDate &&
         r.scanned_by_username === user.username
       );
 
@@ -203,14 +212,17 @@ export default function ShiftInheritModal({ currentShift, currentUser, records, 
             <div style={{ color: "var(--tx3)", fontSize: 13 }}>Başka vardiya yok.</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {/* Today's shifts */}
               {otherShifts.map(shift => {
                 const recordCount = (records || []).filter(r =>
                   r.shift === shift && deriveShiftDate(r) === today
                 ).length;
 
+                if (recordCount === 0) return null;
+
                 return (
                   <button
-                    key={shift}
+                    key={`${today}-${shift}`}
                     className="btn btn-ghost"
                     style={{
                       display: "flex",
@@ -220,9 +232,37 @@ export default function ShiftInheritModal({ currentShift, currentUser, records, 
                       textAlign: "left",
                       fontSize: 14
                     }}
-                    onClick={() => handleShiftSelect(shift)}
+                    onClick={() => handleShiftSelect(shift, today)}
                   >
                     <span style={{ fontWeight: 700 }}>{today} / {shift}</span>
+                    <span style={{ fontSize: 12, color: "var(--tx3)" }}>{recordCount} kayıt</span>
+                  </button>
+                );
+              })}
+
+              {/* Yesterday's shifts */}
+              {otherShifts.map(shift => {
+                const recordCount = (records || []).filter(r =>
+                  r.shift === shift && deriveShiftDate(r) === yesterday
+                ).length;
+
+                if (recordCount === 0) return null;
+
+                return (
+                  <button
+                    key={`${yesterday}-${shift}`}
+                    className="btn btn-ghost"
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "12px 16px",
+                      textAlign: "left",
+                      fontSize: 14
+                    }}
+                    onClick={() => handleShiftSelect(shift, yesterday)}
+                  >
+                    <span style={{ fontWeight: 700 }}>{yesterday} / {shift}</span>
                     <span style={{ fontSize: 12, color: "var(--tx3)" }}>{recordCount} kayıt</span>
                   </button>
                 );
@@ -236,7 +276,7 @@ export default function ShiftInheritModal({ currentShift, currentUser, records, 
       {stage === 2 && (
         <>
           <div style={{ fontSize: 13, color: "var(--tx2)", marginBottom: 12 }}>
-            Kaynak Vardiya: <b>{sourceShift}</b>
+            Kaynak Vardiya: <b>{sourceDate} / {sourceShift}</b>
           </div>
           {usersInSourceShift.length === 0 ? (
             <div style={{ color: "var(--tx3)", fontSize: 13 }}>
@@ -274,7 +314,7 @@ export default function ShiftInheritModal({ currentShift, currentUser, records, 
       {stage === 3 && (
         <>
           <div style={{ fontSize: 12, color: "var(--tx2)", marginBottom: 12 }}>
-            <b>{sourceShift}</b> / <b>{sourceUser?.name}</b>
+            <b>{sourceDate} / {sourceShift}</b> / <b>{sourceUser?.name}</b>
           </div>
 
           {userRecords.length === 0 ? (
