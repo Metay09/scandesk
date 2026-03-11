@@ -543,7 +543,7 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
         })()}
       </div>
 
-      {editDupRec && <EditRecordModal record={editDupRec} fields={fields} customers={customers} canManageCustomers={true} onSave={(r)=>{ onEdit(r); setEditDupRec(null); }} onClose={()=>setEditDupRec(null)} />}
+      {editDupRec && <EditRecordModal record={editDupRec} fields={fields} customers={customers} canManageCustomers={true} onSave={(r)=>{ onEdit(r); setEditDupRec(null); }} onClose={()=>{ setEditDupRec(null); setBarcode(""); }} />}
 
       {inheritModal && <ShiftInheritModal currentShift={currentShift} records={records} onCopy={copyFromShift} onClose={() => setInheritModal(false)} />}
 
