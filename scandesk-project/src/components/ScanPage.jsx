@@ -11,7 +11,7 @@ import ShiftTakeoverPrompt from "./ShiftTakeoverPrompt";
 import FieldInput from "./FieldInput";
 import DetailFormModal from "./DetailFormModal";
 
-export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records, lastSaved, customers, isAdmin, user, integration, scanSettings, toast, shiftExpired = false, shiftTakeovers = {}, onShiftTakeover }) {
+export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records, lastSaved, customers, isAdmin, user, integration, scanSettings, toast, shiftExpired = false, shiftTakeovers = {}, onShiftTakeover, addToSyncQueue }) {
   const customerList = getCustomerList(customers);
   const normalizeCustomer = (val) => val === "-Boş-" ? "" : val;
   const inputRef  = useRef(null);
@@ -321,9 +321,10 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
             onSyncUpdate?.(row.id, true, null);
           })
           .catch(e => {
-            // Failure: mark as failed with error
+            // Failure: mark as failed with error and add to queue
             onSyncUpdate?.(row.id, false, e.message);
-            toast("Supabase hatası: " + e.message, "var(--err)");
+            addToSyncQueue?.("create", row.id, row);
+            toast("PostgreSQL başarısız, kuyruğa eklendi", "var(--acc)");
           });
       } else {
         // Google Sheets with no-cors mode
@@ -332,16 +333,15 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
         sheetsInsert(integration.gsheets, headers, rowArr)
           .then(() => {
             // Request sent successfully (but server response unknown due to no-cors)
-            onSyncUpdate?.(row.id, true, null);
+            // Don't update sync status for Google Sheets
           })
           .catch(e => {
             // Network error or request failed to send
-            onSyncUpdate?.(row.id, false, e.message);
             toast("Sheets hatası: " + e.message, "var(--err)");
           });
       }
     }
-  }, [customer, extras, fields, user, onSave, onSyncUpdate, scheduleFocus, vibration, beep, integration, toast, isAdmin, adminShift, validateBarcodeForSave]);
+  }, [customer, extras, fields, user, onSave, onSyncUpdate, scheduleFocus, vibration, beep, integration, toast, isAdmin, adminShift, validateBarcodeForSave, addToSyncQueue]);
 
   const doSave = useCallback(() => {
     if (pendingBc) doSaveCode(pendingBc, extras);

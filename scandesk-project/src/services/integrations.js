@@ -7,6 +7,23 @@ export async function supabaseInsert(cfg, row) {
   if (!r.ok) throw new Error(`Supabase ${r.status}: ${await r.text()}`);
 }
 
+export async function supabaseUpdate(cfg, id, row) {
+  const r = await fetch(`${cfg.url.replace(/\/$/, "")}/rest/v1/${cfg.table}?id=eq.${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { apikey: cfg.key, Authorization: `Bearer ${cfg.key}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+    body: JSON.stringify(row),
+  });
+  if (!r.ok) throw new Error(`Supabase ${r.status}: ${await r.text()}`);
+}
+
+export async function supabaseDelete(cfg, id) {
+  const r = await fetch(`${cfg.url.replace(/\/$/, "")}/rest/v1/${cfg.table}?id=eq.${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: { apikey: cfg.key, Authorization: `Bearer ${cfg.key}` },
+  });
+  if (!r.ok) throw new Error(`Supabase ${r.status}: ${await r.text()}`);
+}
+
 // Note: Google Apps Script requires mode:"no-cors" which returns an opaque response.
 // The promise resolves when the request is sent; server-side errors cannot be detected from the client.
 //
