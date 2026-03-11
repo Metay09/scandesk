@@ -34,7 +34,7 @@ export default function App() {
   const [integration, setIntegration] = useState({
     active: false, type: "supabase",
     supabase: { url: "", key: "", table: "taramalar" },
-    gsheets:  { scriptUrl: "" },
+    gsheets:  { scriptUrl: "https://script.google.com/macros/s/AKfycbywRIk85STTKY9oF9H7fu186t1WqAr26qTc_vM2w7kXd_Iq4oYpn7yu3LmPaUOHOqQj/exec" },
   });
   const [hydrated, setHydrated] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem("scandesk_theme") || "dark");
