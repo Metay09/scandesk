@@ -528,15 +528,79 @@ export default function App() {
 
   const handleClear  = () => {
     if (window.confirm("Tüm kayıtlar silinecek. Onaylıyor musunuz?")) {
-      setRecords([]); setLastSaved(null); toast("Tüm veriler temizlendi", "var(--err)");
+      const recordsToDelete = [...records]; // Copy current records before clearing
+      setRecords([]);
+      setLastSaved(null);
+      toast("Tüm veriler temizlendi", "var(--err)");
+
+      // Sync each deletion to PostgreSQL if integration is active
+      if (integration.active && integration.type === "supabase") {
+        recordsToDelete.forEach(record => {
+          supabaseDelete(integration.supabase, record.id)
+            .catch(err => {
+              // Failed - add to queue for retry
+              addToSyncQueue("delete", record.id, record);
+            });
+        });
+        if (recordsToDelete.length > 0) {
+          toast(`PostgreSQL'den ${recordsToDelete.length} kayıt siliniyor...`, "var(--acc)");
+        }
+      }
+
+      // Sync each deletion to Google Sheets if integration is active
+      if (integration.active && integration.type === "gsheets") {
+        recordsToDelete.forEach(record => {
+          sheetsDelete(integration.gsheets, record.id)
+            .catch(e => {
+              // Network error - just log it
+              console.error("Sheets silme hatası:", e);
+            });
+        });
+        if (recordsToDelete.length > 0) {
+          toast(`Google Sheets'den ${recordsToDelete.length} kayıt siliniyor...`, "var(--acc)");
+        }
+      }
     }
   };
 
   const handleDeleteRange = (startLocal, endLocal) => {
     const a = new Date(startLocal).toISOString();
     const b = new Date(endLocal).toISOString();
+
+    // Find records to delete before filtering
+    const recordsToDelete = records.filter(r => r.timestamp >= a && r.timestamp <= b);
+
+    // Update local state
     setRecords(p => p.filter(r => !(r.timestamp >= a && r.timestamp <= b)));
     setLastSaved(p => (p && (p.timestamp >= a && p.timestamp <= b) ? null : p));
+
+    // Sync each deletion to PostgreSQL if integration is active
+    if (integration.active && integration.type === "supabase") {
+      recordsToDelete.forEach(record => {
+        supabaseDelete(integration.supabase, record.id)
+          .catch(err => {
+            // Failed - add to queue for retry
+            addToSyncQueue("delete", record.id, record);
+          });
+      });
+      if (recordsToDelete.length > 0) {
+        toast(`PostgreSQL'den ${recordsToDelete.length} kayıt siliniyor...`, "var(--acc)");
+      }
+    }
+
+    // Sync each deletion to Google Sheets if integration is active
+    if (integration.active && integration.type === "gsheets") {
+      recordsToDelete.forEach(record => {
+        sheetsDelete(integration.gsheets, record.id)
+          .catch(e => {
+            // Network error - just log it
+            console.error("Sheets silme hatası:", e);
+          });
+      });
+      if (recordsToDelete.length > 0) {
+        toast(`Google Sheets'den ${recordsToDelete.length} kayıt siliniyor...`, "var(--acc)");
+      }
+    }
   };
 
   const handleExport = async (type, ids) => {
