@@ -4,7 +4,7 @@ import Modal from "./Modal";
 import FieldInput from "./FieldInput";
 import CustomerPicker from "./CustomerPicker";
 
-export default function DetailFormModal({ barcode, fields, extras, onExtrasChange, customer, onCustomerChange, customerList, onCustomerAdd, onCustomerRemove, canManageCustomers, onSave, onClose }) {
+export default function DetailFormModal({ barcode, fields, extras, onExtrasChange, note, onNoteChange, customer, onCustomerChange, customerList, onCustomerAdd, onCustomerRemove, canManageCustomers, onSave, onClose }) {
   const firstFieldRef = useRef(null);
 
   // Auto-focus first field when modal opens
@@ -20,7 +20,7 @@ export default function DetailFormModal({ barcode, fields, extras, onExtrasChang
   const handleFieldKeyDown = (e, fieldIndex) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      if (fieldIndex < fields.length - 1) {
+      if (fieldIndex < fields.length) {
         // Move to next field
         const nextInput = e.target.closest('.modal-bd')?.querySelectorAll('input, select, textarea')[fieldIndex + 1];
         nextInput?.focus();
@@ -57,11 +57,33 @@ export default function DetailFormModal({ barcode, fields, extras, onExtrasChang
           {barcode}
         </div>
       </div>
+      {/* Note field (sticky like customer) */}
+      <div>
+        <label className="lbl">Not</label>
+        <input
+          ref={firstFieldRef}
+          type="text"
+          value={note || ""}
+          onChange={(e) => onNoteChange(e.target.value)}
+          onKeyDown={(e) => handleFieldKeyDown(e, -1)}
+          placeholder="Not girin..."
+          style={{
+            width: "100%",
+            height: 40,
+            borderRadius: 10,
+            padding: "0 12px",
+            background: "var(--s2)",
+            color: "var(--tx)",
+            border: "1.5px solid var(--brd)",
+            fontSize: 13,
+            fontWeight: 700,
+          }}
+        />
+      </div>
       {fields.map((f, i) => (
         <div key={f.id}>
           <label className="lbl">{f.label}{f.required ? " *" : ""}</label>
           <FieldInput
-            ref={i === 0 ? firstFieldRef : null}
             field={f}
             value={extras[f.id] || ""}
             onChange={(v) => onExtrasChange(f.id, v)}
