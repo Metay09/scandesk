@@ -10,7 +10,7 @@ import { isNative, loadState, saveState } from "./services/storage";
 import { getCurrentShift, pad2, deriveShiftDate, getShiftDate, getShiftEndTime } from "./utils";
 import { normalizeRecord, migrateRecords } from "./services/recordModel";
 import { sheetsUpdate, sheetsDelete, supabaseInsert, supabaseUpdate, supabaseDelete } from "./services/integrations";
-import { createQueueItem, addToQueue, removeFromQueue, getPendingItems, markAsProcessing, markAsFailed, getQueueStats } from "./services/syncQueue";
+import { createQueueItem, addToQueue, removeFromQueue, getPendingItems, getRetryableItems, markAsProcessing, markAsFailed, getQueueStats } from "./services/syncQueue";
 import { toDbPayload } from "./services/recordModel";
 import { useToast } from "./hooks/useToast";
 import { Ic, I } from "./components/Icon";
@@ -459,18 +459,23 @@ export default function App() {
       return { success: 0, failed: 0 };
     }
 
-    const pending = getPendingItems(syncQueue);
-    if (pending.length === 0) {
-      toast("Bekleyen senkron işlemi yok", "var(--acc)");
+    // Get retryable items (pending + failed)
+    const retryable = getRetryableItems(syncQueue);
+    if (retryable.length === 0) {
+      toast("Bekleyen işlem yok", "var(--acc)");
       return { success: 0, failed: 0 };
     }
 
     setIsSyncing(true);
     let successCount = 0;
     let failedCount = 0;
+    let retriedCount = 0;
 
-    for (const item of pending) {
+    for (const item of retryable) {
       try {
+        // Track if this was a retry
+        const wasRetry = item.status === "failed";
+
         // Mark as processing
         setSyncQueue(prev => markAsProcessing(prev, item.id));
 
@@ -493,6 +498,7 @@ export default function App() {
         // Success - remove from queue
         setSyncQueue(prev => removeFromQueue(prev, item.id));
         successCount++;
+        if (wasRetry) retriedCount++;
       } catch (err) {
         // Failed - mark as failed in queue
         setSyncQueue(prev => markAsFailed(prev, item.id, err.message));
@@ -506,14 +512,18 @@ export default function App() {
 
     setIsSyncing(false);
 
-    // Show result
-    if (failedCount === 0) {
+    // Show detailed result
+    if (failedCount === 0 && retriedCount === 0) {
       toast(`${successCount} işlem senkronize edildi`, "var(--ok)");
+    } else if (failedCount === 0 && retriedCount > 0) {
+      toast(`${successCount} işlem senkronize edildi (${retriedCount} yeniden denendi)`, "var(--ok)");
+    } else if (successCount > 0 && failedCount > 0) {
+      toast(`${successCount} başarılı, ${failedCount} başarısız${retriedCount > 0 ? ` (${retriedCount} yeniden denendi)` : ""}`, "var(--err)");
     } else {
-      toast(`${successCount} başarılı, ${failedCount} başarısız`, "var(--err)");
+      toast(`Tümü başarısız: ${failedCount} hata`, "var(--err)");
     }
 
-    return { success: successCount, failed: failedCount };
+    return { success: successCount, failed: failedCount, retried: retriedCount };
   }, [integration, isSyncing, syncQueue, handleSyncUpdate, toast]);
 
   const handleClear  = () => {
@@ -701,10 +711,7 @@ export default function App() {
       <div className="topbar">
         <div className="logo-icon" style={{ width: 28, height: 28, borderRadius: 7 }}><Ic d={I.barcode} s={14} /></div>
         <span style={{ fontSize: 15, fontWeight: 800 }}>ScanDesk</span>
-        <span style={{ flex: 1, textAlign: "center", fontSize: 12, fontWeight: 700, color: "var(--tx2)" }}>
-          {NAV.find(n => n.id === page)?.label}
-        </span>
-        {page === "data" && integration.active && integration.type === "supabase" && (
+        {integration.active && integration.type === "supabase" && (
           <button
             className="btn btn-ghost btn-sm"
             style={{
@@ -725,7 +732,7 @@ export default function App() {
                 animation: isSyncing ? "spin 1s linear infinite" : "none"
               }}
             />
-            {getPendingItems(syncQueue).length > 0 && (
+            {getRetryableItems(syncQueue).length > 0 && (
               <span style={{
                 position: "absolute",
                 top: 2,
@@ -741,11 +748,14 @@ export default function App() {
                 alignItems: "center",
                 justifyContent: "center"
               }}>
-                {getPendingItems(syncQueue).length}
+                {getRetryableItems(syncQueue).length}
               </span>
             )}
           </button>
         )}
+        <span style={{ flex: 1, textAlign: "center", fontSize: 12, fontWeight: 700, color: "var(--tx2)" }}>
+          {NAV.find(n => n.id === page)?.label}
+        </span>
         <button
           className="btn btn-ghost btn-sm"
           style={{ width: 36, height: 36, padding: 0, flexShrink: 0 }}
@@ -766,6 +776,49 @@ export default function App() {
         <div className="side-logo">
           <div className="logo-icon" style={{ width: 30, height: 30, borderRadius: 8 }}><Ic d={I.barcode} s={14} /></div>
           ScanDesk
+          {integration.active && integration.type === "supabase" && (
+            <button
+              className="btn btn-ghost btn-sm"
+              style={{
+                width: 32,
+                height: 32,
+                padding: 0,
+                marginLeft: "auto",
+                flexShrink: 0,
+                position: "relative"
+              }}
+              onClick={processSyncQueue}
+              disabled={isSyncing}
+              title="Bekleyenleri senkronize et"
+            >
+              <Ic
+                d={I.refresh}
+                s={14}
+                style={{
+                  animation: isSyncing ? "spin 1s linear infinite" : "none"
+                }}
+              />
+              {getRetryableItems(syncQueue).length > 0 && (
+                <span style={{
+                  position: "absolute",
+                  top: 1,
+                  right: 1,
+                  background: "var(--err)",
+                  color: "#fff",
+                  fontSize: 9,
+                  fontWeight: 700,
+                  borderRadius: "50%",
+                  width: 14,
+                  height: 14,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}>
+                  {getRetryableItems(syncQueue).length}
+                </span>
+              )}
+            </button>
+          )}
         </div>
         {NAV.map(n => (
           <button key={n.id} className={`side-item ${page === n.id ? "active" : ""}`} onClick={() => setPage(n.id)}>

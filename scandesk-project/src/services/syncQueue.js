@@ -89,6 +89,13 @@ export function getPendingItems(queue) {
 }
 
 /**
+ * Get retryable queue items (pending + failed)
+ */
+export function getRetryableItems(queue) {
+  return queue.filter(q => q.status === "pending" || q.status === "failed");
+}
+
+/**
  * Get failed queue items
  */
 export function getFailedItems(queue) {
