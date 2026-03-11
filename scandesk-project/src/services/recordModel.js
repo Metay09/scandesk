@@ -24,7 +24,8 @@ export const FIXED_FIELDS = [
   'syncStatus',
   'syncError',
   'source',
-  'inheritedFromShift',
+  'sourceRecordId',
+  'inheritedFromShift', // Deprecated, kept for backward compatibility
   'createdAt',
   'updatedAt'
 ];
@@ -52,7 +53,8 @@ const LEGACY_DYNAMIC_FIELDS = ['qty', 'note'];
 // syncStatus                →  sync_status
 // syncError                 →  sync_error
 // source                    →  source
-// inheritedFromShift        →  inherited_from_shift
+// sourceRecordId            →  source_record_id
+// inheritedFromShift        →  inherited_from_shift (deprecated)
 // createdAt                 →  created_at
 // updatedAt                 →  updated_at
 // customFields              →  custom_fields (JSONB)
@@ -71,6 +73,7 @@ const FIELD_TO_DB_MAPPING = {
   'syncStatus': 'sync_status',
   'syncError': 'sync_error',
   'source': 'source',
+  'sourceRecordId': 'source_record_id',
   'inheritedFromShift': 'inherited_from_shift',
   'createdAt': 'created_at',
   'updatedAt': 'updated_at'
