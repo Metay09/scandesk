@@ -490,16 +490,16 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
         />
       </div>
 
-      {/* Not (Note field - sticky like customer) */}
-      <div style={{ marginBottom: 10 }}>
-        <label className="lbl" style={{ marginBottom: 4, fontSize: 12 }}>Not</label>
+      {/* Not (Note field - styled like customer) */}
+      <div className="cust-bar">
+        <label className="lbl" style={{ marginBottom: 0, fontSize: 12 }}>Not</label>
         <input
           type="text"
           value={note}
           onChange={(e) => setNote(e.target.value)}
           placeholder="Not girin..."
           style={{
-            width: "100%",
+            flex: 1,
             height: 40,
             borderRadius: 10,
             padding: "0 12px",
