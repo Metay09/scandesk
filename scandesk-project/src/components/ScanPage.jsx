@@ -126,87 +126,7 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
     const rDate = deriveShiftDate(r);
     return rBc === bc && rShift === String(currentShift ?? "") && rDate === currentShiftDate;
   });
-  const canAcceptCode = (bc) => {
-    if (!bc) return { ok:false, msg:null };
-
-    // Barcode length validation
-    if (scanSettings.enforceBarcodeLengthMatch) {
-      if (expectedBarcodeLength.current === null) {
-        // First barcode - set the expected length
-        expectedBarcodeLength.current = bc.length;
-      } else if (bc.length !== expectedBarcodeLength.current) {
-        // Length mismatch
-        return {
-          ok: false,
-          msg: `⚠ Barkod uzunluğu ${expectedBarcodeLength.current} olmalı (okunan: ${bc.length})`
-        };
-      }
-    }
-
-    const now = Date.now();
-    const last = recentRef.current.get(bc);
-    if (last && (now - last) < (scanSettings.scanDebounceMs || 800)) return { ok:false, msg:"⚠ Çift okuma engellendi" };
-    recentRef.current.set(bc, now);
-    if (findExistingRec(bc)) return { ok:false, msg:"⚠ Bu barkod bu vardiyada zaten var", dup:true };
-    if (bulkMode && bulkList.some(x => x.code === bc)) return { ok:false, msg:"⚠ Bu kod zaten listede" };
-    return { ok:true, msg:null };
-  };
-
-  const onBarcode = (code) => {
-    if (shiftExpired && !isAdmin) { toast("Vardiya sona erdi — okutma devre dışı", "var(--err)"); return false; }
-    const bc = normalizeCode(code);
-    const chk = canAcceptCode(bc);
-    if (!chk.ok) {
-      if (chk.dup) {
-        const ex = findExistingRec(bc);
-        if (ex) setEditDupRec(ex);
-      }
-      if (chk.msg) toast(chk.msg, "var(--err)");
-      if (scanSettings.vibration && navigator.vibrate) navigator.vibrate([120, 80, 120]);
-      if (scanSettings.beep) playBeep();
-      scheduleFocus();
-      return false;
-    }
-
-    if (bulkMode) {
-      setBulkList(p => [{ code: bc, ts: new Date().toISOString() }, ...p]);
-      setBarcode("");
-      setFlash("saved");
-      setTimeout(() => { setFlash("ready"); scheduleFocus(); }, 500);
-      if (scanSettings.vibration && navigator.vibrate) navigator.vibrate([25, 15, 25]);
-      if (scanSettings.beep) playBeep();
-      toast("➕ Listeye eklendi", "var(--inf)");
-      return true;
-    }
-
-    doSaveCode(bc, {});
-    return true;
-  };
-  onBarcodeRef.current = onBarcode;
-
-  // Auto-save when barcode length matches expected length
-  // IMPORTANT: This useEffect must be placed AFTER canAcceptCode and onBarcode are defined
-  // to avoid Temporal Dead Zone (TDZ) errors in production builds
-  useEffect(() => {
-    if (!autoSave) return; // Auto-save must be enabled
-    if (!scanSettings.enforceBarcodeLengthMatch) return; // Length enforcement must be enabled
-    if (expectedBarcodeLength.current === null) return; // Expected length must be set
-    if (pendingBc) return; // Don't trigger if detail form is shown
-    if (addDetailAfterScan) return; // Don't trigger if detail form is configured
-
-    const trimmedBarcode = barcode.trim();
-    if (!trimmedBarcode) return; // Empty barcode
-    if (trimmedBarcode.length !== expectedBarcodeLength.current) return; // Length doesn't match
-
-    // All conditions met - validate and auto-save the barcode
-    const validation = canAcceptCode(trimmedBarcode);
-    if (validation.ok) {
-      onBarcode(trimmedBarcode);
-    }
-  }, [barcode, autoSave, scanSettings.enforceBarcodeLengthMatch, expectedBarcodeLength, pendingBc, addDetailAfterScan, canAcceptCode, onBarcode]);
-
-  /* ── Unified Validation Layer ── */
-  const validateBarcodeForSave = useCallback((bc) => {
+  const validateBarcodeForSave = useCallback((bc, { markUsed = true } = {}) => {
     if (!bc) {
       return { ok: false, msg: null };
     }
@@ -236,7 +156,9 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
     if (last && (now - last) < (scanSettings.scanDebounceMs || 800)) {
       return { ok: false, msg: "⚠ Çift okuma engellendi" };
     }
-    recentRef.current.set(bc, now);
+    if (markUsed) {
+      recentRef.current.set(bc, now);
+    }
 
     // Duplicate check
     const ex = findExistingRec(bc);
@@ -245,7 +167,58 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
     }
 
     return { ok: true, msg: null };
-  }, [shiftExpired, isAdmin, scanSettings, findExistingRec, vibration, beep]);
+  }, [shiftExpired, isAdmin, scanSettings, findExistingRec]);
+  const onBarcode = (code) => {
+    if (shiftExpired && !isAdmin) { toast("Vardiya sona erdi — okutma devre dışı", "var(--err)"); return false; }
+    const bc = normalizeCode(code);
+    if (bulkMode) {
+      const validation = validateBarcodeForSave(bc, { markUsed: false });
+      if (!validation.ok) {
+        if (validation.dup && validation.existingRecord) {
+          setEditDupRec(validation.existingRecord);
+        }
+        if (validation.msg) toast(validation.msg, "var(--err)");
+        if (scanSettings.vibration && navigator.vibrate) navigator.vibrate([120, 80, 120]);
+        if (scanSettings.beep) playBeep();
+        scheduleFocus();
+        return false;
+      }
+      if (bulkList.some(x => x.code === bc)) {
+        toast("⚠ Bu kod zaten listede", "var(--err)");
+        return false;
+      }
+      setBulkList(p => [{ code: bc, ts: new Date().toISOString() }, ...p]);
+      setBarcode("");
+      setFlash("saved");
+      setTimeout(() => { setFlash("ready"); scheduleFocus(); }, 500);
+      if (scanSettings.vibration && navigator.vibrate) navigator.vibrate([25, 15, 25]);
+      if (scanSettings.beep) playBeep();
+      toast("➕ Listeye eklendi", "var(--inf)");
+      return true;
+    }
+
+    doSaveCode(bc, {});
+    return true;
+  };
+  onBarcodeRef.current = onBarcode;
+
+  // Auto-save when barcode length matches expected length
+  // IMPORTANT: This useEffect must be placed AFTER onBarcode is defined
+  // to avoid Temporal Dead Zone (TDZ) errors in production builds
+  useEffect(() => {
+    if (!autoSave) return; // Auto-save must be enabled
+    if (!scanSettings.enforceBarcodeLengthMatch) return; // Length enforcement must be enabled
+    if (expectedBarcodeLength.current === null) return; // Expected length must be set
+    if (pendingBc) return; // Don't trigger if detail form is shown
+    if (addDetailAfterScan) return; // Don't trigger if detail form is configured
+
+    const trimmedBarcode = barcode.trim();
+    if (!trimmedBarcode) return; // Empty barcode
+    if (trimmedBarcode.length !== expectedBarcodeLength.current) return; // Length doesn't match
+
+    // All conditions met - trigger save flow
+    onBarcode(trimmedBarcode);
+  }, [barcode, autoSave, scanSettings.enforceBarcodeLengthMatch, expectedBarcodeLength, pendingBc, addDetailAfterScan, onBarcode]);
 
   /* ── Save ── */
   const doSaveCode = useCallback((code, extrasOverride) => {
@@ -421,11 +394,10 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
     // Show detail form if setting is enabled, otherwise proceed with save
     if (addDetailAfterScan && bc && !pendingBc) {
       // Validate before showing detail form
-      const validation = canAcceptCode(bc);
+      const validation = validateBarcodeForSave(bc, { markUsed: false });
       if (!validation.ok) {
-        if (validation.dup) {
-          const ex = findExistingRec(bc);
-          if (ex) setEditDupRec(ex);
+        if (validation.dup && validation.existingRecord) {
+          setEditDupRec(validation.existingRecord);
         }
         if (validation.msg) toast(validation.msg, "var(--err)");
         if (scanSettings.vibration && navigator.vibrate) navigator.vibrate([120, 80, 120]);
@@ -442,13 +414,11 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
       return;
     }
 
-    // If autoSave is enabled, trigger onBarcode which will validate and save
+    // Trigger save via the unified flow
     if (autoSave) {
       onBarcode(bc);
     } else {
-      // If autoSave is disabled, user must click Save button
-      // Don't clear barcode, don't save automatically
-      // Barcode stays in input for manual confirmation
+      doSave();
     }
   };
 
