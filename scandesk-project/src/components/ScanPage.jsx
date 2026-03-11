@@ -217,10 +217,7 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
     // Apply unified validation
     const validation = validateBarcodeForSave(bc);
     if (!validation.ok) {
-      // For duplicates in autoSave mode, only show warning - don't open edit modal
-      if (validation.dup && validation.existingRecord && !autoSave) {
-        setEditDupRec(validation.existingRecord);
-      }
+      // For duplicates, only show warning - user can manually edit via recent scans list
       if (validation.msg) {
         toast(validation.msg, "var(--err)");
       }
@@ -389,9 +386,7 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
       // Validate before showing detail form
       const validation = validateBarcodeForSave(bc, { markUsed: false });
       if (!validation.ok) {
-        if (validation.dup && validation.existingRecord) {
-          setEditDupRec(validation.existingRecord);
-        }
+        // Only show warning - user can manually edit via recent scans list
         if (validation.msg) toast(validation.msg, "var(--err)");
         if (scanSettings.vibration && navigator.vibrate) navigator.vibrate([120, 80, 120]);
         if (scanSettings.beep) playBeep();
