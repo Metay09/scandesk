@@ -27,8 +27,20 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
     <div className="page" style={{ paddingLeft: 0, paddingRight: 0 }}>
       <div className="section-hd">Tarama</div>
       <div className="s-card">
-        <Row icon={I.save} label="Otomatik Kaydet" sub="Her okumada Enter'la otomatik kaydeder"><Toggle value={settings.autoSave} onChange={v => set("autoSave", v)} /></Row>
-        <Row icon={I.edit} label="Taramadan Sonra Detay Ekle" sub="Önce barkod taranır, sonra diğer alanlar doldurulur"><Toggle value={settings.addDetailAfterScan} onChange={v => set("addDetailAfterScan", v)} /></Row>
+        <Row icon={I.save} label="Otomatik Kaydet" sub="Her okumada Enter'la otomatik kaydeder"><Toggle value={settings.autoSave} onChange={v => {
+          set("autoSave", v);
+          // If autoSave is enabled, disable addDetailAfterScan to prevent conflict
+          if (v && settings.addDetailAfterScan) {
+            set("addDetailAfterScan", false);
+          }
+        }} /></Row>
+        <Row icon={I.edit} label="Taramadan Sonra Detay Ekle" sub="Önce barkod taranır, sonra diğer alanlar doldurulur"><Toggle value={settings.addDetailAfterScan} onChange={v => {
+          set("addDetailAfterScan", v);
+          // If addDetailAfterScan is enabled, disable autoSave to prevent conflict
+          if (v && settings.autoSave) {
+            set("autoSave", false);
+          }
+        }} /></Row>
         <Row icon={I.vib} label="Titreşim"><Toggle value={settings.vibration} onChange={v => set("vibration", v)} /></Row>
         <Row icon={I.bell} label="Bip Sesi"><Toggle value={settings.beep} onChange={v => set("beep", v)} /></Row>
         <Row icon={I.data} label="Son Okutmalar" sub="Aktif vardiyada gösterilecek son kayıt sayısı">
