@@ -27,14 +27,14 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
     <div className="page" style={{ paddingLeft: 0, paddingRight: 0 }}>
       <div className="section-hd">Tarama</div>
       <div className="s-card">
-        <Row icon={I.save} label="Otomatik Kaydet" sub="Her okumada Enter'la otomatik kaydeder"><Toggle value={settings.autoSave} onChange={v => {
+        <Row icon={I.save} label="Hızlı Okutma Modu" sub="Barkod gelir, direkt kaydolur, tekrar okutmaya hazır olur. Duplicate bulursa sadece uyarı verir."><Toggle value={settings.autoSave} onChange={v => {
           set("autoSave", v);
           // If autoSave is enabled, disable addDetailAfterScan to prevent conflict
           if (v && settings.addDetailAfterScan) {
             set("addDetailAfterScan", false);
           }
         }} /></Row>
-        <Row icon={I.edit} label="Taramadan Sonra Detay Ekle" sub="Önce barkod taranır, sonra diğer alanlar doldurulur"><Toggle value={settings.addDetailAfterScan} onChange={v => {
+        <Row icon={I.edit} label="Detaylı Giriş Modu" sub="Barkod okutulur, detay ekranı açılır, müşteri/not girilir, kaydedilir."><Toggle value={settings.addDetailAfterScan} onChange={v => {
           set("addDetailAfterScan", v);
           // If addDetailAfterScan is enabled, disable autoSave to prevent conflict
           if (v && settings.autoSave) {

@@ -16,11 +16,18 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
   const normalizeCustomer = (val) => val === "-Boş-" ? "" : val;
   const inputRef  = useRef(null);
   const focusTimer = useRef(null);
-  const bulkModeRef = useRef(false);
   const addDetailAfterScanRef = useRef(false);
 
   const [barcode, setBarcode]     = useState("");
-  const [extras, setExtras]       = useState({});
+  const [extras, setExtras]       = useState(() => {
+    // Load sticky fields from localStorage
+    try {
+      const saved = localStorage.getItem("scandesk_sticky_fields");
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
   const [flash, setFlash]         = useState("ready");
   const [customer, setCustomer]   = useState(() => {
     // Load from localStorage, default to empty string
@@ -33,8 +40,6 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
   });
   const [pendingBc, setPendingBc] = useState(null);
 
-  const [bulkMode, setBulkMode]   = useState(false);
-  const [bulkList, setBulkList]   = useState([]);
   const [editDupRec, setEditDupRec] = useState(null);
   const [inheritModal, setInheritModal] = useState(false);
   const recentRef = useRef(new Map());
@@ -90,7 +95,6 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
     expectedBarcodeLength.current = null;
   }, [currentShift, currentShiftDate]);
 
-  useEffect(() => { bulkModeRef.current = bulkMode; }, [bulkMode]);
   useEffect(() => { addDetailAfterScanRef.current = addDetailAfterScan; }, [addDetailAfterScan]);
 
   // Persist customer selection to localStorage
@@ -101,6 +105,15 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
       console.error("Failed to save customer to localStorage:", e);
     }
   }, [customer]);
+
+  // Persist sticky fields (notes, etc.) to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem("scandesk_sticky_fields", JSON.stringify(extras));
+    } catch (e) {
+      console.error("Failed to save sticky fields to localStorage:", e);
+    }
+  }, [extras]);
 
   const scheduleFocus = useCallback(() => {
     clearTimeout(focusTimer.current);
@@ -169,34 +182,11 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
     return { ok: true, msg: null };
   }, [shiftExpired, isAdmin, scanSettings, findExistingRec]);
   const onBarcode = (code) => {
-    if (shiftExpired && !isAdmin) { toast("Vardiya sona erdi — okutma devre dışı", "var(--err)"); return false; }
-    const bc = normalizeCode(code);
-    if (bulkMode) {
-      const validation = validateBarcodeForSave(bc, { markUsed: false });
-      if (!validation.ok) {
-        if (validation.dup && validation.existingRecord) {
-          setEditDupRec(validation.existingRecord);
-        }
-        if (validation.msg) toast(validation.msg, "var(--err)");
-        if (scanSettings.vibration && navigator.vibrate) navigator.vibrate([120, 80, 120]);
-        if (scanSettings.beep) playBeep();
-        scheduleFocus();
-        return false;
-      }
-      if (bulkList.some(x => x.code === bc)) {
-        toast("⚠ Bu kod zaten listede", "var(--err)");
-        return false;
-      }
-      setBulkList(p => [{ code: bc, ts: new Date().toISOString() }, ...p]);
-      setBarcode("");
-      setFlash("saved");
-      setTimeout(() => { setFlash("ready"); scheduleFocus(); }, 500);
-      if (scanSettings.vibration && navigator.vibrate) navigator.vibrate([25, 15, 25]);
-      if (scanSettings.beep) playBeep();
-      toast("➕ Listeye eklendi", "var(--inf)");
-      return true;
+    if (shiftExpired && !isAdmin) {
+      toast("Vardiya sona erdi — okutma devre dışı", "var(--err)");
+      return false;
     }
-
+    const bc = normalizeCode(code);
     doSaveCode(bc, {});
     return true;
   };
@@ -227,9 +217,7 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
     // Apply unified validation
     const validation = validateBarcodeForSave(bc);
     if (!validation.ok) {
-      if (validation.dup && validation.existingRecord) {
-        setEditDupRec(validation.existingRecord);
-      }
+      // For duplicates, only show warning - user can manually edit via recent scans list
       if (validation.msg) {
         toast(validation.msg, "var(--err)");
       }
@@ -276,7 +264,9 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
     };
 
     onSave(row);
-    setBarcode(""); setExtras({}); setPendingBc(null);
+    setBarcode("");
+    setPendingBc(null);
+    // Note: We don't clear extras here - sticky fields persist across scans
     setFlash("saved");
     setTimeout(() => { setFlash("ready"); scheduleFocus(); }, 700);
     if (vibration && navigator.vibrate) navigator.vibrate([25, 15, 25]);
@@ -396,9 +386,7 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
       // Validate before showing detail form
       const validation = validateBarcodeForSave(bc, { markUsed: false });
       if (!validation.ok) {
-        if (validation.dup && validation.existingRecord) {
-          setEditDupRec(validation.existingRecord);
-        }
+        // Only show warning - user can manually edit via recent scans list
         if (validation.msg) toast(validation.msg, "var(--err)");
         if (scanSettings.vibration && navigator.vibrate) navigator.vibrate([120, 80, 120]);
         if (scanSettings.beep) playBeep();
@@ -481,6 +469,22 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
         />
       </div>
 
+      {/* Extra fields (Note, etc.) - sticky fields visible on scan page */}
+      {fields.filter(f => f.id !== "barcode").length > 0 && (
+        <div style={{ marginBottom: 10, padding: "8px 12px", background: "var(--card)", border: "1.5px solid var(--brd)", borderRadius: "var(--r)" }}>
+          {fields.filter(f => f.id !== "barcode").map((f) => (
+            <div key={f.id} style={{ marginBottom: 8 }}>
+              <label className="lbl" style={{ fontSize: 11, marginBottom: 4 }}>{f.label}</label>
+              <FieldInput
+                field={f}
+                value={extras[f.id] || ""}
+                onChange={(v) => setExtras(p => ({ ...p, [f.id]: v }))}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Status */}
       <div className={`status-bar ${flash === "saved" ? "s-saved" : "s-ready"}`}>
         {flash === "saved" ? <><Ic d={I.check} s={16} /> Kaydedildi!</>
@@ -502,49 +506,6 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
           autoCapitalize="none" spellCheck={false} inputMode="text"
         />
       </div>
-
-      {/* Toplu Mod */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center" }}>
-        <button type="button" className={`btn btn-sm ${bulkMode ? "btn-info" : "btn-ghost"}`} onClick={() => {
-          if (bulkMode) {
-            const n = bulkList.length;
-            setBulkMode(false);
-            setBulkList([]);
-            toast(n ? `⚠ Kaydedilmemiş ${n} barkod vardı. Toplu mod kapatıldı.` : "Toplu mod kapandı", "var(--inf)");
-          } else {
-            setBulkMode(true);
-            toast("Toplu mod açıldı", "var(--inf)");
-          }
-        }}>
-          <Ic d={I.group} s={14} /> Toplu Mod
-        </button>
-        {bulkMode && (
-          <>
-            <button type="button" className="btn btn-danger btn-sm" onClick={() => setBulkList([])}><Ic d={I.trash} s={14} /> Temizle</button>
-            <button type="button" className="btn btn-ok btn-sm" onClick={() => {
-              if (!bulkList.length) { toast("Kaydedilecek veri yok", "var(--acc)"); return; }
-              const list = [...bulkList].reverse();
-              list.forEach(x => doSaveCode(x.code, extras));
-              setBulkList([]);
-              setBulkMode(false);
-              toast(`✓ ${list.length} kayıt kaydedildi. Toplu mod kapatıldı.`, "var(--ok)");
-            }}>
-              <Ic d={I.save} s={14} /> Toplu Kaydet ({bulkList.length})
-            </button>
-          </>
-        )}
-      </div>
-
-      {bulkMode && bulkList.length > 0 && (
-        <div style={{ marginBottom: 10, maxHeight: 160, overflow: "auto", border: "1.5px solid var(--brd)", borderRadius: "var(--r)", padding: 8, background: "var(--card)" }}>
-          {bulkList.map((x, i) => (
-            <div key={x.code} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 4px", borderBottom: i === bulkList.length - 1 ? "none" : "1px solid var(--brd)" }}>
-              <span className="bc" style={{ flex: 1 }}>{x.code}</span>
-              <button className="btn btn-danger btn-sm" style={{ height: 28 }} onClick={() => setBulkList(p => p.filter(y => y.code !== x.code))}><Ic d={I.del} s={12} /></button>
-            </div>
-          ))}
-        </div>
-      )}
 
       {!autoSave && (
         <button className="btn btn-ok btn-full btn-lg" style={{ marginBottom: 10 }} onClick={doSave}>
@@ -633,7 +594,7 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
           onCustomerRemove={customers.remove}
           canManageCustomers={true}
           onSave={doSave}
-          onClose={() => { setPendingBc(null); setBarcode(""); setExtras({}); scheduleFocus(); }}
+          onClose={() => { setPendingBc(null); setBarcode(""); scheduleFocus(); }}
         />
       )}
     </div>
