@@ -85,6 +85,11 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
   const currentShift = isAdmin ? adminShift : userShift;
   const currentShiftDate = getShiftDate(undefined, currentShift);
 
+  // Reset expected barcode length when shift changes
+  useEffect(() => {
+    expectedBarcodeLength.current = null;
+  }, [currentShift, currentShiftDate]);
+
   useEffect(() => { bulkModeRef.current = bulkMode; }, [bulkMode]);
   useEffect(() => { addDetailAfterScanRef.current = addDetailAfterScan; }, [addDetailAfterScan]);
 
@@ -120,9 +125,12 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
     if (!trimmedBarcode) return; // Empty barcode
     if (trimmedBarcode.length !== expectedBarcodeLength.current) return; // Length doesn't match
 
-    // All conditions met - auto-save the barcode
-    onBarcode(trimmedBarcode);
-  }, [barcode, autoSave, scanSettings.enforceBarcodeLengthMatch, expectedBarcodeLength, pendingBc, addDetailAfterScan]);
+    // All conditions met - validate and auto-save the barcode
+    const validation = canAcceptCode(trimmedBarcode);
+    if (validation.ok) {
+      onBarcode(trimmedBarcode);
+    }
+  }, [barcode, autoSave, scanSettings.enforceBarcodeLengthMatch, expectedBarcodeLength, pendingBc, addDetailAfterScan, canAcceptCode, onBarcode]);
 
   const handleCustomerSelect = (val) => {
     setCustomer(normalizeCustomer(val));
@@ -195,19 +203,61 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
   };
   onBarcodeRef.current = onBarcode;
 
+  /* ── Unified Validation Layer ── */
+  const validateBarcodeForSave = useCallback((bc) => {
+    if (!bc) {
+      return { ok: false, msg: null };
+    }
+
+    // Shift expiry check
+    if (shiftExpired && !isAdmin) {
+      return { ok: false, msg: "Vardiya sona erdi — okutma devre dışı" };
+    }
+
+    // Length validation
+    if (scanSettings.enforceBarcodeLengthMatch) {
+      if (expectedBarcodeLength.current === null) {
+        // First barcode - set the expected length
+        expectedBarcodeLength.current = bc.length;
+      } else if (bc.length !== expectedBarcodeLength.current) {
+        // Length mismatch
+        return {
+          ok: false,
+          msg: `⚠ Barkod uzunluğu ${expectedBarcodeLength.current} olmalı (okunan: ${bc.length})`
+        };
+      }
+    }
+
+    // Debounce check
+    const now = Date.now();
+    const last = recentRef.current.get(bc);
+    if (last && (now - last) < (scanSettings.scanDebounceMs || 800)) {
+      return { ok: false, msg: "⚠ Çift okuma engellendi" };
+    }
+    recentRef.current.set(bc, now);
+
+    // Duplicate check
+    const ex = findExistingRec(bc);
+    if (ex) {
+      return { ok: false, msg: "⚠ Bu barkod bu vardiyada zaten var", dup: true, existingRecord: ex };
+    }
+
+    return { ok: true, msg: null };
+  }, [shiftExpired, isAdmin, scanSettings, findExistingRec, vibration, beep]);
+
   /* ── Save ── */
   const doSaveCode = useCallback((code, extrasOverride) => {
     const bc = (code || "").trim();
-    if (!bc) { scheduleFocus(); return; }
-    if (shiftExpired && !isAdmin) {
-      toast("Vardiya sona erdi — okutma devre dışı", "var(--err)");
-      scheduleFocus();
-      return;
-    }
-    const ex = findExistingRec(bc);
-    if (ex) {
-      setEditDupRec(ex);
-      toast("⚠ Bu barkod bu vardiyada zaten var", "var(--err)");
+
+    // Apply unified validation
+    const validation = validateBarcodeForSave(bc);
+    if (!validation.ok) {
+      if (validation.dup && validation.existingRecord) {
+        setEditDupRec(validation.existingRecord);
+      }
+      if (validation.msg) {
+        toast(validation.msg, "var(--err)");
+      }
       if (vibration && navigator.vibrate) navigator.vibrate([120, 80, 120]);
       if (beep) playBeep();
       scheduleFocus();
@@ -291,7 +341,7 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
           });
       }
     }
-  }, [customer, extras, fields, user, onSave, onSyncUpdate, scheduleFocus, vibration, beep, integration, toast, records, isAdmin, adminShift, shiftExpired]);
+  }, [customer, extras, fields, user, onSave, onSyncUpdate, scheduleFocus, vibration, beep, integration, toast, isAdmin, adminShift, validateBarcodeForSave]);
 
   const doSave = useCallback(() => {
     if (pendingBc) doSaveCode(pendingBc, extras);
@@ -365,16 +415,39 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
     if (e.key !== "Enter") return;
     e.preventDefault();
     const bc = barcode.trim();
-    // Show detail form if setting is enabled, otherwise use autoSave behavior
+
+    // Show detail form if setting is enabled, otherwise proceed with save
     if (addDetailAfterScan && bc && !pendingBc) {
+      // Validate before showing detail form
+      const validation = canAcceptCode(bc);
+      if (!validation.ok) {
+        if (validation.dup) {
+          const ex = findExistingRec(bc);
+          if (ex) setEditDupRec(ex);
+        }
+        if (validation.msg) toast(validation.msg, "var(--err)");
+        if (scanSettings.vibration && navigator.vibrate) navigator.vibrate([120, 80, 120]);
+        if (scanSettings.beep) playBeep();
+        return;
+      }
       setPendingBc(bc);
       return;
     }
+
+    // If in detail form, save and close
     if (pendingBc) {
       doSave();
       return;
     }
-    if (autoSave) onBarcode(bc);
+
+    // If autoSave is enabled, trigger onBarcode which will validate and save
+    if (autoSave) {
+      onBarcode(bc);
+    } else {
+      // If autoSave is disabled, user must click Save button
+      // Don't clear barcode, don't save automatically
+      // Barcode stays in input for manual confirmation
+    }
   };
 
   return (
