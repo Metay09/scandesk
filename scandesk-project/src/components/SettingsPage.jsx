@@ -136,8 +136,8 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
                 • Kayıtlar otomatik olarak sunucuya senkronize edilir<br />
                 • Bağlantı başarısız olursa kayıtlar kuyruğa alınır ve tekrar denenir
               </div>
-              <div><label className="lbl">Server URL</label><input placeholder="https://scandesk-api.simsekhome.site" value={pg.serverUrl} onChange={e => setPg(p => ({ ...p, serverUrl: e.target.value }))} /></div>
-              <div><label className="lbl">API Key</label><PasswordInput value={pg.apiKey} onChange={e => setPg(p => ({ ...p, apiKey: e.target.value }))} placeholder="scandesk_live_xxxxxxxxx" /></div>
+              <div><label className="lbl">Server URL</label><input placeholder="https://api.your-server.com" value={pg.serverUrl} onChange={e => setPg(p => ({ ...p, serverUrl: e.target.value }))} /></div>
+              <div><label className="lbl">API Key</label><PasswordInput value={pg.apiKey} onChange={e => setPg(p => ({ ...p, apiKey: e.target.value }))} placeholder="api_key_xxxxxxxxx" /></div>
               <button className="btn btn-ok btn-full" onClick={() => { if (!pg.serverUrl || !pg.apiKey) { toast("Tüm alanları doldurun", "var(--err)"); return; } setIntegration({ type: "postgres_api", active: true, postgresApi: pg, gsheets: gs }); toast("PostgreSQL API aktif edildi"); setPgOpen(false); }}><Ic d={I.check} s={15} /> Aktif Et</button>
             </div>
           )}
