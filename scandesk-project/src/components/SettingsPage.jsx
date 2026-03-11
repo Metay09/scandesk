@@ -134,8 +134,8 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
                 <b>1.</b> supabase.com → yeni proje oluştur<br />
                 <b>2.</b> Project Settings → API → URL ve anon key kopyala<br />
                 <b>3.</b> SQL Editor'de şu komutu çalıştır:<br />
-                <textarea readOnly rows={5} style={{ marginTop: 8, fontSize: 10, fontFamily: "var(--mono)", background: "rgba(0,0,0,.3)", border: "1px solid var(--brd)", borderRadius: "var(--r)", padding: 8, color: "var(--tx)" }}
-                  value={`CREATE TABLE taramalar (\n  id text PRIMARY KEY,\n  barcode text,\n  customer text,\n  shift text,\n  scanned_by text,\n  scanned_by_username text,\n  timestamp timestamptz,\n  qty text, note text\n);`} />
+                <textarea readOnly rows={12} style={{ marginTop: 8, fontSize: 10, fontFamily: "var(--mono)", background: "rgba(0,0,0,.3)", border: "1px solid var(--brd)", borderRadius: "var(--r)", padding: 8, color: "var(--tx)" }}
+                  value={`CREATE TABLE taramalar (\n  id text PRIMARY KEY,\n  barcode text,\n  timestamp timestamptz,\n  date text,\n  time text,\n  shift text,\n  shift_date text,\n  customer text,\n  scanned_by text,\n  scanned_by_username text,\n  synced boolean,\n  sync_status text,\n  sync_error text,\n  source text,\n  source_record_id text,\n  inherited_from_shift text,\n  created_at timestamptz,\n  updated_at timestamptz,\n  custom_fields jsonb\n);`} />
               </div>
               <div><label className="lbl">Project URL</label><input placeholder="https://xxxx.supabase.co" value={sb.url} onChange={e => setSb(p => ({ ...p, url: e.target.value }))} /></div>
               <div><label className="lbl">Anon Key</label><PasswordInput value={sb.key} onChange={e => setSb(p => ({ ...p, key: e.target.value }))} placeholder="eyJhbGci..." /></div>

@@ -59,6 +59,9 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
         labelMap["devralınan vardiya"] = "inheritedFromShift";
         labelMap["devralinan vardiya"] = "inheritedFromShift";
         labelMap["kaynak"] = "source";
+        labelMap["kaynak kayıt id"] = "sourceRecordId";
+        labelMap["kaynak kayit id"] = "sourceRecordId";
+        labelMap["sourcerecordid"] = "sourceRecordId";
         labelMap["oluşturulma"] = "createdAt";
         labelMap["olusturulma"] = "createdAt";
         labelMap["güncellenme"] = "updatedAt";
@@ -149,6 +152,7 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
           if (!rec.syncStatus) rec.syncStatus = "pending";
           if (!rec.syncError) rec.syncError = "";
           if (!rec.source) rec.source = "import";
+          if (!rec.sourceRecordId) rec.sourceRecordId = "";
           if (!rec.inheritedFromShift) rec.inheritedFromShift = "";
           // Preserve original timestamps if they exist, otherwise use current timestamp
           if (!rec.createdAt) rec.createdAt = rec.timestamp;

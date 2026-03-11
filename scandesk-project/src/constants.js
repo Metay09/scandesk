@@ -20,7 +20,6 @@ export const INITIAL_SETTINGS = {
 
 export const INITIAL_FIELDS = [
   { id: "barcode", label: "Barkod", type: "Metin", required: true,  locked: true },
-  { id: "qty",     label: "Miktar", type: "Sayı",  required: false, locked: false },
   { id: "note",    label: "Not",    type: "Metin", required: false, locked: false },
 ];
 
