@@ -423,7 +423,7 @@ export default function App() {
     const hdr = [
       "ID", "Barkod", ...ef.map(f => f.label), "Müşteri", "Kaydeden", "Kullanıcı Adı",
       "Tarih", "Saat", "Vardiya", "Vardiya Tarihi", "Timestamp",
-      "Senkronize", "Senkronizasyon Durumu", "Senkronizasyon Hatası", "Devralınan Vardiya", "Kaynak", "Oluşturulma", "Güncellenme"
+      "Senkronize", "Senkronizasyon Durumu", "Senkronizasyon Hatası", "Kaynak", "Kaynak Kayıt ID", "Devralınan Vardiya", "Oluşturulma", "Güncellenme"
     ];
 
     // Helper to safely get field value while preserving data types
@@ -472,8 +472,9 @@ export default function App() {
           safeValue(r.synced),
           safeValue(r.syncStatus),
           safeValue(r.syncError),
-          safeValue(r.inheritedFromShift),
           safeValue(r.source),
+          safeValue(r.sourceRecordId),
+          safeValue(r.inheritedFromShift),
           safeValue(r.createdAt),
           safeValue(r.updatedAt)
         ];

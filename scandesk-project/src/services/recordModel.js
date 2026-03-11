@@ -25,7 +25,7 @@ export const FIXED_FIELDS = [
   'syncError',
   'source',
   'sourceRecordId',
-  'inheritedFromShift', // Deprecated, kept for backward compatibility
+  'inheritedFromShift', // DEPRECATED: Kept for backward compatibility only. Use 'source' + 'sourceRecordId' instead.
   'createdAt',
   'updatedAt'
 ];
@@ -201,82 +201,6 @@ export function fromDbPayload(dbRecord) {
   });
 
   return record;
-}
-
-/**
- * Flatten record to columnar format for export (Excel/CSV)
- * Expands customFields into individual columns
- *
- * NOTE: This utility is currently NOT used by the export logic in App.jsx.
- * App.jsx has its own inline export transformation that handles:
- * - ISO 8601 date/time formatting
- * - System field ordering and labeling
- * - Type preservation for Excel
- * This function is kept for potential future use or other export scenarios.
- *
- * @param {Object} record - Normalized record
- * @param {Array} fields - Field definitions
- * @returns {Object} Flat record object with all fields at root level
- */
-export function flattenRecordForExport(record, fields = []) {
-  if (!record || typeof record !== 'object') return record;
-
-  const flat = {};
-
-  // Copy all fixed fields (except customFields)
-  FIXED_FIELDS.forEach(field => {
-    if (record[field] !== undefined) {
-      flat[field] = record[field];
-    }
-  });
-
-  // Expand customFields to root level
-  if (record.customFields && typeof record.customFields === 'object') {
-    Object.entries(record.customFields).forEach(([key, value]) => {
-      flat[key] = value;
-    });
-  }
-
-  return flat;
-}
-
-/**
- * Inflate flat record from import (Excel/CSV) into normalized structure
- * Separates fixed fields from dynamic fields
- *
- * @param {Object} flatRecord - Flat record from import
- * @param {Array} fields - Field definitions to determine which fields are dynamic
- * @returns {Object} Normalized record with customFields
- */
-export function inflateImportedRecord(flatRecord, fields = []) {
-  if (!flatRecord || typeof flatRecord !== 'object') return flatRecord;
-
-  const normalized = {};
-  const customFields = {};
-
-  // Get dynamic field IDs from field definitions
-  const dynamicFieldIds = fields
-    .filter(f => !FIXED_FIELDS.includes(f.id))
-    .map(f => f.id);
-
-  // Separate fixed fields from dynamic fields
-  Object.entries(flatRecord).forEach(([key, value]) => {
-    if (FIXED_FIELDS.includes(key)) {
-      // It's a fixed field
-      normalized[key] = value;
-    } else if (dynamicFieldIds.includes(key) || LEGACY_DYNAMIC_FIELDS.includes(key)) {
-      // It's a dynamic field
-      customFields[key] = value;
-    } else {
-      // Unknown field - treat as dynamic to preserve data
-      customFields[key] = value;
-    }
-  });
-
-  // Add customFields to normalized record
-  normalized.customFields = customFields;
-
-  return normalized;
 }
 
 /**
