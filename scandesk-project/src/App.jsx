@@ -22,17 +22,6 @@ import FieldsPage from "./components/FieldsPage";
 import UsersPage from "./components/UsersPage";
 import SettingsPage from "./components/SettingsPage";
 
-const LEGACY_POSTGRES_HOST = "scandesk-api.simsekhome.site";
-const LEGACY_API_KEY_PREFIX = "scandesk_live_";
-
-const sanitizePostgresApiConfig = (cfg = {}) => {
-  const serverUrl = (cfg.serverUrl || "").trim();
-  const apiKeyRaw = (cfg.apiKey || "").trim();
-  const apiKey = apiKeyRaw.startsWith(LEGACY_API_KEY_PREFIX) ? "" : apiKeyRaw;
-  const sanitizedServerUrl = serverUrl.includes(LEGACY_POSTGRES_HOST) ? "" : serverUrl;
-  return { serverUrl: sanitizedServerUrl, apiKey };
-};
-
 export default function App() {
   const [users, setUsers]         = useState(INITIAL_USERS);
   const [user, setUser]           = useState(null);
@@ -44,7 +33,10 @@ export default function App() {
   const [settings, setSettings]   = useState(INITIAL_SETTINGS);
   const [integration, setIntegration] = useState({
     active: false, type: "postgres_api",
-    postgresApi: sanitizePostgresApiConfig({}),
+    postgresApi: {
+      serverUrl: "https://scandesk-api.simsekhome.site",
+      apiKey: "scandesk_live_7f9c2d1a8b4e6f0c9a2d5e7b1c3f8a6d"
+    },
     gsheets:  { scriptUrl: "" },
   });
   const [hydrated, setHydrated] = useState(false);
@@ -194,22 +186,28 @@ export default function App() {
             ...st.integration,
             type: "postgres_api",
             postgresApi: {
-              serverUrl: st.integration.supabase.url || "",
-              apiKey: st.integration.supabase.key || ""
+              serverUrl: st.integration.supabase.url || "https://scandesk-api.simsekhome.site",
+              apiKey: st.integration.supabase.key || "scandesk_live_7f9c2d1a8b4e6f0c9a2d5e7b1c3f8a6d"
             },
             // Keep old supabase config for reference but it won't be used
             supabase: undefined
           };
         }
         // Ensure postgresApi field exists with defaults
-        const sanitizedPgCfg = sanitizePostgresApiConfig(
-          migratedIntegration.postgresApi || { serverUrl: "", apiKey: "" }
-        );
-        migratedIntegration = {
-          ...migratedIntegration,
-          postgresApi: sanitizedPgCfg,
-          gsheets: migratedIntegration.gsheets || { scriptUrl: "" }
-        };
+        if (!migratedIntegration.postgresApi) {
+          migratedIntegration.postgresApi = {
+            serverUrl: "https://scandesk-api.simsekhome.site",
+            apiKey: "scandesk_live_7f9c2d1a8b4e6f0c9a2d5e7b1c3f8a6d"
+          };
+        } else {
+          // Fill in defaults for empty fields (first-time setup), but preserve user values
+          if (!migratedIntegration.postgresApi.serverUrl) {
+            migratedIntegration.postgresApi.serverUrl = "https://scandesk-api.simsekhome.site";
+          }
+          if (!migratedIntegration.postgresApi.apiKey) {
+            migratedIntegration.postgresApi.apiKey = "scandesk_live_7f9c2d1a8b4e6f0c9a2d5e7b1c3f8a6d";
+          }
+        }
         setIntegration(migratedIntegration);
       }
 
