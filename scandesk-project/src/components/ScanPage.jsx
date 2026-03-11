@@ -243,6 +243,7 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
       syncStatus: "pending",
       syncError: "",
       source: "scan",
+      sourceRecordId: "",
       inheritedFromShift: "",
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
@@ -297,22 +298,35 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
     else doSaveCode(barcode, extras);
   }, [pendingBc, barcode, extras, doSaveCode]);
 
-  const copyFromShift = useCallback((sourceShift, selectedIds) => {
+  const copyFromShift = useCallback((sourceShift, sourceUsername, selectedIds) => {
     const targetShift = isAdmin ? adminShift : getCurrentShift();
     const todayStr = getShiftDate(undefined, targetShift);
-    // Admin: seçilen vardiyaya kopyalar; normal kullanıcı: saate göre otomatik
     const selectedSet = new Set(selectedIds);
-    const currentBarcodes = new Set(
-      (records || []).filter(r => r.shift === targetShift && deriveShiftDate(r) === todayStr).map(r => r.barcode)
+
+    // Check for already taken records to prevent duplicates
+    const alreadyTakenSourceIds = new Set(
+      (records || [])
+        .filter(r =>
+          r.scanned_by_username === user.username &&
+          r.shift === targetShift &&
+          deriveShiftDate(r) === todayStr &&
+          r.source === "shift_takeover" &&
+          r.sourceRecordId
+        )
+        .map(r => r.sourceRecordId)
     );
+
     const toCopy = (records || []).filter(r =>
       r.shift === sourceShift &&
       deriveShiftDate(r) === todayStr &&
+      r.scanned_by_username === sourceUsername &&
       selectedSet.has(r.id) &&
-      !currentBarcodes.has(r.barcode)
+      !alreadyTakenSourceIds.has(r.id) // Prevent duplicate takeover
     );
+
     const now = new Date();
     const copyDateStr = getShiftDate(now, targetShift);
+
     toCopy.forEach(r => {
       // Create new record maintaining customFields structure
       const newRecord = {
@@ -323,7 +337,11 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
         time: fmtTime(now),
         shift: targetShift,
         shiftDate: copyDateStr,
-        inheritedFromShift: sourceShift,
+        scanned_by: user.name,
+        scanned_by_username: user.username,
+        source: "shift_takeover",
+        sourceRecordId: r.id, // Track which record this was copied from
+        inheritedFromShift: sourceShift, // Keep for backward compatibility
         synced: false,
         syncStatus: "pending",
         createdAt: now.toISOString(),
@@ -333,13 +351,15 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
       };
       onSave(newRecord);
     });
+
     setInheritModal(false);
+
     if (toCopy.length > 0) {
-      toast(`✓ ${toCopy.length} kayıt ${sourceShift} vardiyasından kopyalandı`, "var(--ok)");
+      toast(`✓ ${toCopy.length} kayıt devralındı`, "var(--ok)");
     } else {
-      toast("Kopyalanacak kayıt bulunamadı", "var(--acc)");
+      toast("Devralınacak kayıt bulunamadı veya tümü zaten devralınmış", "var(--acc)");
     }
-  }, [records, onSave, toast, isAdmin, adminShift]);
+  }, [records, onSave, toast, isAdmin, adminShift, user]);
 
   const handleKey = e => {
     if (e.key !== "Enter") return;
@@ -518,7 +538,7 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <div className="bc" style={{ fontWeight: 900 }}>{r.barcode}</div>
-                        {r.inheritedFromShift && (
+                        {(r.source === "shift_takeover" || r.inheritedFromShift) && (
                           <span style={{ fontSize: 9, color: 'var(--tx3)', background: 'var(--s2)', border: '1px solid var(--brd)', borderRadius: 4, padding: '1px 5px', whiteSpace: 'nowrap' }}>
                             devralındı
                           </span>
@@ -545,7 +565,7 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
 
       {editDupRec && <EditRecordModal record={editDupRec} fields={fields} customers={customers} canManageCustomers={true} onSave={(r)=>{ onEdit(r); setEditDupRec(null); }} onClose={()=>{ setEditDupRec(null); setBarcode(""); }} />}
 
-      {inheritModal && <ShiftInheritModal currentShift={currentShift} records={records} onCopy={copyFromShift} onClose={() => setInheritModal(false)} />}
+      {inheritModal && <ShiftInheritModal currentShift={currentShift} currentUser={user} records={records} onCopy={copyFromShift} onClose={() => setInheritModal(false)} />}
 
       {showTakeoverPrompt && !isAdmin && (
         <ShiftTakeoverPrompt

@@ -63,9 +63,9 @@ export default function EditRecordModal({ record, fields, customers, onSave, onC
       <div style={{ padding: "9px 12px", background: "var(--pur2)", border: "1.5px solid var(--pur3)", borderRadius: "var(--r)", fontSize: 12, color: "var(--pur)", display: "flex", alignItems: "center", gap: 7 }}>
         <Ic d={I.sig} s={13} /> Kaydeden: <b>{form.scanned_by}</b>
       </div>
-      {form.inheritedFromShift && (
+      {(form.source === "shift_takeover" || form.inheritedFromShift) && (
         <div style={{ padding: "9px 12px", background: "var(--s2)", border: "1.5px solid var(--brd)", borderRadius: "var(--r)", fontSize: 12, color: "var(--tx2)", display: "flex", alignItems: "center", gap: 7 }}>
-          <Ic d={I.upload} s={13} /> Bu kayıt <b>{form.inheritedFromShift}</b> vardiyasından devralındı
+          <Ic d={I.upload} s={13} /> Bu kayıt devralındı
         </div>
       )}
     </Modal>
