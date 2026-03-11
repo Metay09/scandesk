@@ -9,7 +9,7 @@ import { INITIAL_USERS, INITIAL_SETTINGS, INITIAL_FIELDS, DEFAULT_CUSTS } from "
 import { isNative, loadState, saveState } from "./services/storage";
 import { getCurrentShift, pad2, deriveShiftDate, getShiftDate, getShiftEndTime } from "./utils";
 import { normalizeRecord, migrateRecords } from "./services/recordModel";
-import { sheetsUpdate, sheetsDelete, postgresApiInsert, postgresApiUpdate, postgresApiDelete } from "./services/integrations";
+import { sheetsUpdate, sheetsDelete, postgresApiInsert, postgresApiUpdate, postgresApiDelete, syncRecordToSheets } from "./services/integrations";
 import { createQueueItem, addToQueue, removeFromQueue, getPendingItems, getRetryableItems, markAsProcessing, markAsFailed, getQueueStats } from "./services/syncQueue";
 import { toDbPayload } from "./services/recordModel";
 import { useToast } from "./hooks/useToast";
@@ -767,12 +767,58 @@ export default function App() {
     }
   };
 
-  const handleImport = (imported) => {
+  const handleImport = async (imported) => {
     if (!imported.length) { toast("İçe aktarılacak veri yok", "var(--acc)"); return; }
     // Migrate imported records to new structure
     const normalized = normalizeRecordsWithModel(imported);
     setRecords(p => [...normalized, ...p]);
     toast(`✓ ${normalized.length} kayıt içe aktarıldı`, "var(--ok)");
+
+    // Sync each imported record to integrations (same logic as new scans)
+    if (integration.active && normalized.length > 0) {
+      let syncedCount = 0;
+      let failedCount = 0;
+
+      for (const record of normalized) {
+        // PostgreSQL integration
+        if (integration.type === "postgres_api") {
+          try {
+            const dbPayload = toDbPayload(record);
+            await postgresApiInsert(integration.postgresApi, dbPayload);
+            // Success: mark as synced
+            handleSyncUpdate(record.id, true, null);
+            syncedCount++;
+          } catch (e) {
+            // Failure: mark as failed with error and add to queue
+            handleSyncUpdate(record.id, false, e.message);
+            addToSyncQueue("create", record.id, record);
+            failedCount++;
+          }
+        }
+        // Google Sheets integration
+        else if (integration.type === "gsheets") {
+          try {
+            await syncRecordToSheets(integration.gsheets, record, fields);
+            syncedCount++;
+          } catch (e) {
+            // Network error - just log it (can't detect server errors due to no-cors)
+            console.error("Sheets sync error on import:", e);
+            failedCount++;
+          }
+        }
+      }
+
+      // Show sync result
+      if (integration.type === "postgres_api") {
+        if (failedCount === 0) {
+          toast(`${syncedCount} kayıt PostgreSQL'e senkronize edildi`, "var(--ok)");
+        } else {
+          toast(`${syncedCount} senkronize, ${failedCount} başarısız (kuyruğa eklendi)`, "var(--acc)");
+        }
+      } else if (integration.type === "gsheets") {
+        toast(`${normalized.length} kayıt Google Sheets'e gönderildi`, "var(--ok)");
+      }
+    }
   };
 
   const customers = {
