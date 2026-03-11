@@ -57,9 +57,9 @@ export default function DetailFormModal({ barcode, fields, extras, onExtrasChang
           {barcode}
         </div>
       </div>
-      {/* Note field (sticky like customer) */}
-      <div>
-        <label className="lbl">Not</label>
+      {/* Note field (styled like customer) */}
+      <div style={{ width: "100%" }}>
+        <label className="lbl" style={{ marginBottom: 4, fontSize: 12 }}>Not</label>
         <input
           ref={firstFieldRef}
           type="text"

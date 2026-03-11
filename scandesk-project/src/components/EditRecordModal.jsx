@@ -8,7 +8,7 @@ import { getDynamicFieldValue, setDynamicFieldValue } from "../services/recordMo
 
 export default function EditRecordModal({ record, fields, customers, onSave, onClose, canManageCustomers = false }) {
   const [form, set] = useFormState({ ...record });
-  const allF = [{ id: "barcode", label: "Barkod", type: "Metin", readonly: true }, ...fields.filter(f => f.id !== "barcode")];
+  const allF = [{ id: "barcode", label: "Barkod", type: "Metin", readonly: true }, ...fields.filter(f => f.id !== "barcode" && f.id !== "note")];
   const customerList = getCustomerList(customers);
   const normalizeCustomer = (val) => val === "-Boş-" ? "" : val;
 
@@ -49,6 +49,27 @@ export default function EditRecordModal({ record, fields, customers, onSave, onC
           <FieldInput field={f} value={getFieldValue(f.id)} onChange={(v) => setFieldValue(f.id, v)} />
         </div>
       ))}
+      {/* Note field (styled like customer) */}
+      <div style={{ width: "100%" }}>
+        <label className="lbl" style={{ marginBottom: 4, fontSize: 12 }}>Not</label>
+        <input
+          type="text"
+          value={getDynamicFieldValue(form, "note") || ""}
+          onChange={(e) => setFieldValue("note", e.target.value)}
+          placeholder="Not girin..."
+          style={{
+            width: "100%",
+            height: 40,
+            borderRadius: 10,
+            padding: "0 12px",
+            background: "var(--s2)",
+            color: "var(--tx)",
+            border: "1.5px solid var(--brd)",
+            fontSize: 13,
+            fontWeight: 700,
+          }}
+        />
+      </div>
       <div>
         <CustomerPicker
           label="Müşteri"
