@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Ic, I } from "./Icon";
 import { genId } from "../constants";
 import { fmtDate, fmtTime, nowTs, playBeep, getCurrentShift, FIXED_SHIFTS, getCustomerList, getShiftDate, deriveShiftDate } from "../utils";
-import { supabaseInsert, sheetsInsert } from "../services/integrations";
+import { postgresApiInsert, sheetsInsert } from "../services/integrations";
 import { getDynamicFieldValue, toDbPayload } from "../services/recordModel";
 import EditRecordModal from "./EditRecordModal";
 import CustomerPicker from "./CustomerPicker";
@@ -312,10 +312,10 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
       const headers = ["Barkod", ...ef.map(f => f.label), "Müşteri", "Kaydeden", "Kullanıcı Adı", "Tarih", "Saat"];
       // Flatten customFields for sync payload
       const rowArr  = [row.id, bc, ...ef.map(f => row.customFields[f.id] ?? ""), row.customer, row.scanned_by, row.scanned_by_username, now.toLocaleDateString("tr-TR"), now.toLocaleTimeString("tr-TR")];
-      if (integration.type === "supabase") {
+      if (integration.type === "postgres_api") {
         // Convert camelCase to snake_case for PostgreSQL compatibility
         const dbPayload = toDbPayload(row);
-        supabaseInsert(integration.supabase, dbPayload)
+        postgresApiInsert(integration.postgresApi, dbPayload)
           .then(() => {
             // Success: mark as synced
             onSyncUpdate?.(row.id, true, null);
@@ -585,7 +585,7 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
         <Ic d={I.sig} s={14} />
         <span><span style={{ color: 'var(--acc)' }}>İmza:</span> <b>{user.name}</b> ({user.username})</span>
         {autoSave && <span style={{ opacity: .7 }}>· otomatik kayıt</span>}
-        {integration.active && <span style={{ marginLeft: "auto", opacity: .7, fontSize: 11 }}>→ {integration.type === "supabase" ? "Supabase" : "Sheets"}</span>}
+        {integration.active && <span style={{ marginLeft: "auto", opacity: .7, fontSize: 11 }}>→ {integration.type === "postgres_api" ? "PostgreSQL API" : "Sheets"}</span>}
       </div>
 
       {/* Son Okutmalar */}

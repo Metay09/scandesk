@@ -1,27 +1,27 @@
-export async function supabaseInsert(cfg, row) {
-  const r = await fetch(`${cfg.url.replace(/\/$/, "")}/rest/v1/${cfg.table}`, {
+export async function postgresApiInsert(cfg, row) {
+  const r = await fetch(`${cfg.serverUrl.replace(/\/$/, "")}/api/taramalar`, {
     method: "POST",
-    headers: { apikey: cfg.key, Authorization: `Bearer ${cfg.key}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+    headers: { "x-api-key": cfg.apiKey, "Content-Type": "application/json" },
     body: JSON.stringify(row),
   });
-  if (!r.ok) throw new Error(`Supabase ${r.status}: ${await r.text()}`);
+  if (!r.ok) throw new Error(`PostgreSQL API ${r.status}: ${await r.text()}`);
 }
 
-export async function supabaseUpdate(cfg, id, row) {
-  const r = await fetch(`${cfg.url.replace(/\/$/, "")}/rest/v1/${cfg.table}?id=eq.${encodeURIComponent(id)}`, {
+export async function postgresApiUpdate(cfg, id, row) {
+  const r = await fetch(`${cfg.serverUrl.replace(/\/$/, "")}/api/taramalar/${encodeURIComponent(id)}`, {
     method: "PATCH",
-    headers: { apikey: cfg.key, Authorization: `Bearer ${cfg.key}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+    headers: { "x-api-key": cfg.apiKey, "Content-Type": "application/json" },
     body: JSON.stringify(row),
   });
-  if (!r.ok) throw new Error(`Supabase ${r.status}: ${await r.text()}`);
+  if (!r.ok) throw new Error(`PostgreSQL API ${r.status}: ${await r.text()}`);
 }
 
-export async function supabaseDelete(cfg, id) {
-  const r = await fetch(`${cfg.url.replace(/\/$/, "")}/rest/v1/${cfg.table}?id=eq.${encodeURIComponent(id)}`, {
+export async function postgresApiDelete(cfg, id) {
+  const r = await fetch(`${cfg.serverUrl.replace(/\/$/, "")}/api/taramalar/${encodeURIComponent(id)}`, {
     method: "DELETE",
-    headers: { apikey: cfg.key, Authorization: `Bearer ${cfg.key}` },
+    headers: { "x-api-key": cfg.apiKey },
   });
-  if (!r.ok) throw new Error(`Supabase ${r.status}: ${await r.text()}`);
+  if (!r.ok) throw new Error(`PostgreSQL API ${r.status}: ${await r.text()}`);
 }
 
 // Note: Google Apps Script requires mode:"no-cors" which returns an opaque response.
