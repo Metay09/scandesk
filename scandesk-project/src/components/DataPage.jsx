@@ -40,6 +40,8 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
         });
         labelMap["müşteri"] = "customer";
         labelMap["musteri"] = "customer";
+        labelMap["açıklama"] = "aciklama";
+        labelMap["aciklama"] = "aciklama";
         labelMap["kaydeden"] = "scanned_by";
         labelMap["kullanıcı adı"] = "scanned_by_username";
         labelMap["kullanici adi"] = "scanned_by_username";
