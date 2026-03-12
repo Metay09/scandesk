@@ -294,9 +294,9 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
 
     if (integration.active) {
       const ef = fields.filter(f => f.id !== "barcode");
-      const headers = ["Barkod", ...ef.map(f => f.label), "Müşteri", "Kaydeden", "Kullanıcı Adı", "Tarih", "Saat"];
+      const headers = ["Barkod", ...ef.map(f => f.label), "Müşteri", "Açıklama", "Kaydeden", "Kullanıcı Adı", "Tarih", "Saat"];
       // Flatten customFields for sync payload
-      const rowArr  = [row.id, bc, ...ef.map(f => row.customFields[f.id] ?? ""), row.customer, row.scanned_by, row.scanned_by_username, now.toLocaleDateString("tr-TR"), now.toLocaleTimeString("tr-TR")];
+      const rowArr  = [row.id, bc, ...ef.map(f => row.customFields[f.id] ?? ""), row.customer, row.aciklama, row.scanned_by, row.scanned_by_username, now.toLocaleDateString("tr-TR"), now.toLocaleTimeString("tr-TR")];
       if (integration.type === "postgres_api") {
         // Convert camelCase to snake_case for PostgreSQL compatibility
         const dbPayload = toDbPayload(row);

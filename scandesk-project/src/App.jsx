@@ -456,7 +456,7 @@ export default function App() {
     // Sync update to Google Sheets if integration is active
     if (integration.active && integration.type === "gsheets") {
       const ef = fields.filter(f => f.id !== "barcode");
-      const headers = ["Barkod", ...ef.map(f => f.label), "Müşteri", "Kaydeden", "Kullanıcı Adı", "Tarih", "Saat"];
+      const headers = ["Barkod", ...ef.map(f => f.label), "Müşteri", "Açıklama", "Kaydeden", "Kullanıcı Adı", "Tarih", "Saat"];
       // Flatten customFields for sync payload - id is first element
       const timestamp = new Date(rec.timestamp);
       const rowArr = [
@@ -464,6 +464,7 @@ export default function App() {
         rec.barcode,
         ...ef.map(f => rec.customFields?.[f.id] ?? ""),
         rec.customer,
+        rec.aciklama,
         rec.scanned_by,
         rec.scanned_by_username,
         timestamp.toLocaleDateString("tr-TR"),
