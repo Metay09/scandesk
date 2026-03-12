@@ -14,7 +14,7 @@ export default function EditRecordModal({ record, fields, customers, onSave, onC
 
   // Handler to set dynamic field values in customFields
   const setFieldValue = (fieldId, value) => {
-    if (fieldId === "barcode" || fieldId === "customer") {
+    if (fieldId === "barcode" || fieldId === "customer" || fieldId === "aciklama") {
       // Fixed fields go to root
       set(fieldId, value);
     } else {
@@ -26,7 +26,7 @@ export default function EditRecordModal({ record, fields, customers, onSave, onC
 
   // Helper to get field value (supports both customFields and root level)
   const getFieldValue = (fieldId) => {
-    if (fieldId === "barcode" || fieldId === "customer") {
+    if (fieldId === "barcode" || fieldId === "customer" || fieldId === "aciklama") {
       return form[fieldId];
     }
     return getDynamicFieldValue(form, fieldId);
@@ -49,14 +49,25 @@ export default function EditRecordModal({ record, fields, customers, onSave, onC
           <FieldInput field={f} value={getFieldValue(f.id)} onChange={(v) => setFieldValue(f.id, v)} />
         </div>
       ))}
-      {/* Note field (styled like customer) */}
+      <div>
+        <CustomerPicker
+          label="Müşteri"
+          customers={customerList}
+          value={form.customer || ""}
+          onChange={name => set("customer", normalizeCustomer(name))}
+          canManage={canManageCustomers}
+          onAdd={canManageCustomers ? customers?.add : undefined}
+          onRemove={canManageCustomers ? customers?.remove : undefined}
+        />
+      </div>
+      {/* Açıklama field (styled like customer) */}
       <div style={{ width: "100%" }}>
-        <label className="lbl" style={{ marginBottom: 4, fontSize: 12 }}>Not</label>
+        <label className="lbl" style={{ marginBottom: 4, fontSize: 12 }}>Açıklama</label>
         <input
           type="text"
-          value={getDynamicFieldValue(form, "note") || ""}
-          onChange={(e) => setFieldValue("note", e.target.value)}
-          placeholder="Not girin..."
+          value={form.aciklama || ""}
+          onChange={(e) => set("aciklama", e.target.value)}
+          placeholder="Açıklama girin..."
           style={{
             width: "100%",
             height: 40,
@@ -68,17 +79,6 @@ export default function EditRecordModal({ record, fields, customers, onSave, onC
             fontSize: 13,
             fontWeight: 700,
           }}
-        />
-      </div>
-      <div>
-        <CustomerPicker
-          label="Müşteri"
-          customers={customerList}
-          value={form.customer || ""}
-          onChange={name => set("customer", normalizeCustomer(name))}
-          canManage={canManageCustomers}
-          onAdd={canManageCustomers ? customers?.add : undefined}
-          onRemove={canManageCustomers ? customers?.remove : undefined}
         />
       </div>
       <div style={{ padding: "9px 12px", background: "var(--pur2)", border: "1.5px solid var(--pur3)", borderRadius: "var(--r)", fontSize: 12, color: "var(--pur)", display: "flex", alignItems: "center", gap: 7 }}>

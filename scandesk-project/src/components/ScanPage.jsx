@@ -38,10 +38,10 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
       return "";
     }
   });
-  const [note, setNote]           = useState(() => {
-    // Load note from localStorage, default to empty string
+  const [aciklama, setAciklama]   = useState(() => {
+    // Load from localStorage, default to empty string
     try {
-      const saved = localStorage.getItem("scandesk_sticky_note") || "";
+      const saved = localStorage.getItem("scandesk_default_aciklama") || "";
       return saved;
     } catch {
       return "";
@@ -115,14 +115,14 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
     }
   }, [customer]);
 
-  // Persist note selection to localStorage
+  // Persist aciklama selection to localStorage
   useEffect(() => {
     try {
-      localStorage.setItem("scandesk_sticky_note", note);
+      localStorage.setItem("scandesk_default_aciklama", aciklama);
     } catch (e) {
-      console.error("Failed to save note to localStorage:", e);
+      console.error("Failed to save aciklama to localStorage:", e);
     }
-  }, [note]);
+  }, [aciklama]);
 
   // Persist sticky fields (other dynamic fields) to localStorage
   useEffect(() => {
@@ -253,9 +253,7 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
 
     // Create customFields object for dynamic fields
     const customFields = {};
-    // Add note field (handled separately from extras)
-    customFields.note = note || "";
-    // Add other dynamic fields (excluding barcode and note)
+    // Add dynamic fields (excluding barcode and note)
     extraFields.filter(f => f.id !== "note").forEach(f => {
       const v = (extrasOverride ?? extras)[f.id];
       customFields[f.id] = (f.type === "Tarih" && !v) ? now.toISOString().slice(0, 10) : (v ?? "");
@@ -271,6 +269,7 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
       shift,
       shiftDate,
       customer: customer || "",
+      aciklama: aciklama || "",
       scanned_by: user.name,
       scanned_by_username: user.username,
       synced: false,
@@ -327,7 +326,7 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
           });
       }
     }
-  }, [customer, note, extras, fields, user, onSave, onSyncUpdate, scheduleFocus, vibration, beep, integration, toast, isAdmin, adminShift, validateBarcodeForSave, addToSyncQueue]);
+  }, [customer, aciklama, extras, fields, user, onSave, onSyncUpdate, scheduleFocus, vibration, beep, integration, toast, isAdmin, adminShift, validateBarcodeForSave, addToSyncQueue]);
 
   const doSave = useCallback(() => {
     if (pendingBc) doSaveCode(pendingBc, extras);
@@ -490,14 +489,14 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
         />
       </div>
 
-      {/* Not (Note field - styled like customer) */}
+      {/* Açıklama (persistent field like customer) */}
       <div className="cust-bar">
-        <label className="lbl" style={{ marginBottom: 0, fontSize: 12 }}>Not</label>
+        <label className="lbl" style={{ marginBottom: 0, fontSize: 12 }}>Açıklama</label>
         <input
           type="text"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="Not girin..."
+          value={aciklama}
+          onChange={(e) => setAciklama(e.target.value)}
+          placeholder="Açıklama girin..."
           style={{
             flex: 1,
             height: 40,
@@ -511,22 +510,6 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
           }}
         />
       </div>
-
-      {/* Extra fields (other dynamic fields except note) */}
-      {fields.filter(f => f.id !== "barcode" && f.id !== "note").length > 0 && (
-        <div style={{ marginBottom: 10, padding: "8px 12px", background: "var(--card)", border: "1.5px solid var(--brd)", borderRadius: "var(--r)" }}>
-          {fields.filter(f => f.id !== "barcode" && f.id !== "note").map((f) => (
-            <div key={f.id} style={{ marginBottom: 8 }}>
-              <label className="lbl" style={{ fontSize: 11, marginBottom: 4 }}>{f.label}</label>
-              <FieldInput
-                field={f}
-                value={extras[f.id] || ""}
-                onChange={(v) => setExtras(p => ({ ...p, [f.id]: v }))}
-              />
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* Status */}
       <div className={`status-bar ${flash === "saved" ? "s-saved" : "s-ready"}`}>
@@ -630,10 +613,10 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
           fields={fields.filter(f => f.id !== "barcode" && f.id !== "note")}
           extras={extras}
           onExtrasChange={(fieldId, value) => setExtras(p => ({ ...p, [fieldId]: value }))}
-          note={note}
-          onNoteChange={setNote}
           customer={customer}
           onCustomerChange={handleCustomerSelect}
+          aciklama={aciklama}
+          onAciklamaChange={setAciklama}
           customerList={customerList}
           onCustomerAdd={customers.add}
           onCustomerRemove={customers.remove}

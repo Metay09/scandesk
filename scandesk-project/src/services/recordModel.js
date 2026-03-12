@@ -18,6 +18,7 @@ export const FIXED_FIELDS = [
   'shift',
   'shiftDate',
   'customer',
+  'aciklama',
   'scanned_by',
   'scanned_by_username',
   'synced',
@@ -47,6 +48,7 @@ const LEGACY_DYNAMIC_FIELDS = ['qty', 'note'];
 // shift                     →  shift
 // shiftDate                 →  shift_date
 // customer                  →  customer
+// aciklama                  →  aciklama
 // scanned_by                →  scanned_by
 // scanned_by_username       →  scanned_by_username
 // synced                    →  synced
@@ -67,6 +69,7 @@ const FIELD_TO_DB_MAPPING = {
   'shift': 'shift',
   'shiftDate': 'shift_date',
   'customer': 'customer',
+  'aciklama': 'aciklama',
   'scanned_by': 'scanned_by',
   'scanned_by_username': 'scanned_by_username',
   'synced': 'synced',
