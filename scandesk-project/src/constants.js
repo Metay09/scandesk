@@ -15,7 +15,7 @@ export const INITIAL_SETTINGS = {
   allowDeleteField: true,
   recentLimit: 10,
   scanDebounceMs: 800,
-  enforceBarcodeLengthMatch: false,
+  enforceBarcodeLengthMatch: true,
 };
 
 export const INITIAL_FIELDS = [
