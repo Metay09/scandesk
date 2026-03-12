@@ -15,12 +15,11 @@ export const INITIAL_SETTINGS = {
   allowDeleteField: true,
   recentLimit: 10,
   scanDebounceMs: 800,
-  enforceBarcodeLengthMatch: false,
+  enforceBarcodeLengthMatch: true,
 };
 
 export const INITIAL_FIELDS = [
-  { id: "barcode", label: "Barkod", type: "Metin", required: true,  locked: true },
-  { id: "note",    label: "Not",    type: "Metin", required: false, locked: false },
+  { id: "barcode", label: "Barkod", type: "Metin", required: true, locked: true },
 ];
 
 export const FIELD_TYPES    = ["Metin", "Sayı", "Tarih", "Onay Kutusu"];
