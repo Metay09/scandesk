@@ -38,15 +38,6 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
       return "";
     }
   });
-  const [note, setNote]           = useState(() => {
-    // Load note from localStorage, default to empty string
-    try {
-      const saved = localStorage.getItem("scandesk_sticky_note") || "";
-      return saved;
-    } catch {
-      return "";
-    }
-  });
   const [pendingBc, setPendingBc] = useState(null);
 
   const [editDupRec, setEditDupRec] = useState(null);
@@ -115,14 +106,6 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
     }
   }, [customer]);
 
-  // Persist note selection to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem("scandesk_sticky_note", note);
-    } catch (e) {
-      console.error("Failed to save note to localStorage:", e);
-    }
-  }, [note]);
 
   // Persist sticky fields (other dynamic fields) to localStorage
   useEffect(() => {
@@ -253,9 +236,7 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
 
     // Create customFields object for dynamic fields
     const customFields = {};
-    // Add note field (handled separately from extras)
-    customFields.note = note || "";
-    // Add other dynamic fields (excluding barcode and note)
+    // Add dynamic fields (excluding barcode and note)
     extraFields.filter(f => f.id !== "note").forEach(f => {
       const v = (extrasOverride ?? extras)[f.id];
       customFields[f.id] = (f.type === "Tarih" && !v) ? now.toISOString().slice(0, 10) : (v ?? "");
@@ -327,7 +308,7 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
           });
       }
     }
-  }, [customer, note, extras, fields, user, onSave, onSyncUpdate, scheduleFocus, vibration, beep, integration, toast, isAdmin, adminShift, validateBarcodeForSave, addToSyncQueue]);
+  }, [customer, extras, fields, user, onSave, onSyncUpdate, scheduleFocus, vibration, beep, integration, toast, isAdmin, adminShift, validateBarcodeForSave, addToSyncQueue]);
 
   const doSave = useCallback(() => {
     if (pendingBc) doSaveCode(pendingBc, extras);
@@ -490,28 +471,6 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
         />
       </div>
 
-      {/* Not (Note field - styled like customer) */}
-      <div className="cust-bar">
-        <label className="lbl" style={{ marginBottom: 0, fontSize: 12 }}>Not</label>
-        <input
-          type="text"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="Not girin..."
-          style={{
-            flex: 1,
-            height: 40,
-            borderRadius: 10,
-            padding: "0 12px",
-            background: "var(--s2)",
-            color: "var(--tx)",
-            border: "1.5px solid var(--brd)",
-            fontSize: 13,
-            fontWeight: 700,
-          }}
-        />
-      </div>
-
       {/* Extra fields (other dynamic fields except note) */}
       {fields.filter(f => f.id !== "barcode" && f.id !== "note").length > 0 && (
         <div style={{ marginBottom: 10, padding: "8px 12px", background: "var(--card)", border: "1.5px solid var(--brd)", borderRadius: "var(--r)" }}>
@@ -630,8 +589,6 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
           fields={fields.filter(f => f.id !== "barcode" && f.id !== "note")}
           extras={extras}
           onExtrasChange={(fieldId, value) => setExtras(p => ({ ...p, [fieldId]: value }))}
-          note={note}
-          onNoteChange={setNote}
           customer={customer}
           onCustomerChange={handleCustomerSelect}
           customerList={customerList}
