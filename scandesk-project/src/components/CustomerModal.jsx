@@ -37,12 +37,13 @@ export default function CustomerModal({ customers, onClose, onAdd, onRemove, can
         const isSelected = (selectedCustomer || "") === (isDefault ? "" : c);
         return (
         <div key={c}
+          onClick={() => handleSelect(c)}
           style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px",
             background: "var(--s2)",
             border: `1.5px solid ${isSelected ? "var(--inf)" : "var(--brd)"}`,
-            borderRadius: "var(--r)", marginBottom: 8 }}>
+            borderRadius: "var(--r)", marginBottom: 8, cursor: "pointer" }}>
           <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "var(--tx)" }}>{c}</span>
-          <div style={{ display: "flex", gap: 6 }}>
+          <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>
             <button className={`btn btn-sm ${isSelected ? "btn-info" : "btn-ghost"}`} style={{ height: 30, padding: "0 10px" }}
               onClick={() => handleSelect(c)}>
               <Ic d={I.check} s={12} /> Seç
