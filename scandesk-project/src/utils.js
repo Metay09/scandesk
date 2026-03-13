@@ -59,11 +59,11 @@ export const getShiftDate = (ts, shiftLabel) => {
   return fmtDate(d);
 };
 
-// Varsa shiftDate kullan, yoksa timestamp/date üzerinden hesapla
+// Varsa shiftDate kullan, yoksa timestamp üzerinden hesapla
 export const deriveShiftDate = (record) => {
   if (!record) return "";
   if (record.shiftDate) return record.shiftDate;
-  const ts = record.timestamp || record.date || nowTs();
+  const ts = record.timestamp || nowTs();
   return getShiftDate(ts, record.shift);
 };
 

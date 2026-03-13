@@ -53,18 +53,13 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
         // System fields for import/export round-trip
         labelMap["id"] = "id";
         labelMap["timestamp"] = "timestamp";
-        labelMap["senkronize"] = "synced";
         labelMap["senkronizasyon durumu"] = "syncStatus";
         labelMap["senkronizasyon hatası"] = "syncError";
         labelMap["senkronizasyon hatasi"] = "syncError";
-        labelMap["devralınan vardiya"] = "inheritedFromShift";
-        labelMap["devralinan vardiya"] = "inheritedFromShift";
         labelMap["kaynak"] = "source";
         labelMap["kaynak kayıt id"] = "sourceRecordId";
         labelMap["kaynak kayit id"] = "sourceRecordId";
         labelMap["sourcerecordid"] = "sourceRecordId";
-        labelMap["oluşturulma"] = "createdAt";
-        labelMap["olusturulma"] = "createdAt";
         labelMap["güncellenme"] = "updatedAt";
         labelMap["guncellenme"] = "updatedAt";
 
@@ -112,17 +107,16 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
         };
 
         const imported = rows.map(row => {
-          const rec = { id: genId(), synced: false, customFields: {} };
+          const rec = { id: genId(), customFields: {} };
+          let importDate = "", importTime = "";
           Object.entries(row).forEach(([col, val]) => {
             const fid = labelMap[col.toLowerCase().trim()];
+            // date/time are not stored in records but needed to build timestamp
+            if (fid === "date") { importDate = String(val ?? ""); return; }
+            if (fid === "time") { importTime = String(val ?? ""); return; }
             if (fid && FIXED_FIELDS.includes(fid)) {
               // It's a fixed field - put it at root level
-              // Parse based on known system field types
-              if (fid === "synced") {
-                rec[fid] = val === "true" || val === true || val === "1";
-              } else {
-                rec[fid] = String(val ?? "");
-              }
+              rec[fid] = String(val ?? "");
             } else if (fid) {
               // It's a dynamic field - put it in customFields with type parsing
               rec.customFields[fid] = parseFieldValue(val, fid);
@@ -139,27 +133,21 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
 
           // Build timestamp from date+time columns if available, or use imported timestamp
           if (!rec.timestamp) {
-            if (rec.date && rec.time) {
-              const parsed = new Date(`${rec.date}T${rec.time}`);
+            if (importDate && importTime) {
+              const parsed = new Date(`${importDate}T${importTime}`);
               rec.timestamp = isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
             } else {
               rec.timestamp = new Date().toISOString();
             }
           }
-          if (!rec.date) rec.date = rec.timestamp.slice(0, 10);
-          if (!rec.time) rec.time = rec.timestamp.slice(11, 16);
 
           // Set other required fields with defaults (preserve if imported)
           if (!rec.syncStatus) rec.syncStatus = "pending";
           if (!rec.syncError) rec.syncError = "";
           if (!rec.source) rec.source = "import";
           if (!rec.sourceRecordId) rec.sourceRecordId = "";
-          if (!rec.inheritedFromShift) rec.inheritedFromShift = "";
-          // Preserve original timestamps if they exist, otherwise use current timestamp
-          if (!rec.createdAt) rec.createdAt = rec.timestamp;
           if (!rec.updatedAt) rec.updatedAt = rec.timestamp;
 
-          rec.shiftDate = getShiftDate(rec.timestamp || rec.date, rec.shift);
           return rec;
         }).filter(Boolean);
         if (!imported.length) { toast && toast("Barkod sütunu bulunamadı", "var(--err)"); return; }
@@ -224,6 +212,7 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
   };
 
   const allF = [{ id: "barcode", label: "Barkod", type: "Metin" }, ...fields.filter(f => f.id !== "barcode")];
+  const dynamicF = fields.filter(f => f.id !== "barcode");
   // Admin tüm kayıtları görebilir; normal kullanıcılar sadece kendi vardiyalarındaki kendi kayıtlarını görür
   const visibleRecords = isAdmin
     ? records
@@ -235,8 +224,8 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
   const filtered = visibleRecords.filter(r => {
     if (!q) return true;
     // Search in fixed fields and customFields
-    const searchInFixed = [...allF, { id: "customer" }, { id: "scanned_by" }, { id: "shift" }].some(f => {
-      const val = f.id === "barcode" || f.id === "customer" || f.id === "scanned_by" || f.id === "shift"
+    const searchInFixed = [...allF, { id: "customer" }, { id: "aciklama" }, { id: "scanned_by" }, { id: "shift" }].some(f => {
+      const val = f.id === "barcode" || f.id === "customer" || f.id === "aciklama" || f.id === "scanned_by" || f.id === "shift"
         ? r[f.id]
         : getDynamicFieldValue(r, f.id);
       return String(val ?? "").toLowerCase().includes(q.toLowerCase());
@@ -258,18 +247,19 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
     <tr key={r.id}>
       <td style={{ color: "var(--tx3)", fontSize: 10 }}>{records.indexOf(r) + 1}</td>
       <td><input type="checkbox" checked={sel.has(r.id)} onChange={() => toggleSel(r.id)} /></td>
-      {allF.map(f => (
-        <td key={f.id}>
-          {f.id === "barcode" ? <span className="bc">{r[f.id]}</span>
-           : f.type === "Onay Kutusu" ? <span className={`badge ${getDynamicFieldValue(r, f.id) ? "badge-ok" : ""}`} style={!getDynamicFieldValue(r, f.id) ? { color: "var(--tx3)" } : {}}>{getDynamicFieldValue(r, f.id) ? "✓" : "—"}</span>
-           : getDynamicFieldValue(r, f.id) || <span style={{ color: "var(--tx3)" }}>—</span>}
-        </td>
-      ))}
+      <td><span className="bc">{r.barcode}</span></td>
       {showCust && <td style={{ color: "var(--inf)", fontWeight: 600, fontSize: 12 }}>{r.customer || "—"}</td>}
+      <td style={{ fontSize: 12, color: "var(--tx2)" }}>{r.aciklama || "—"}</td>
       <td><span className="sig-cell">{r.scanned_by}</span></td>
       <td style={{ fontSize: 10, color: "var(--tx2)", fontFamily: "var(--mono)", whiteSpace: "nowrap" }}>
         {new Date(r.timestamp).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}
       </td>
+      {dynamicF.map(f => (
+        <td key={f.id}>
+          {f.type === "Onay Kutusu" ? <span className={`badge ${getDynamicFieldValue(r, f.id) ? "badge-ok" : ""}`} style={!getDynamicFieldValue(r, f.id) ? { color: "var(--tx3)" } : {}}>{getDynamicFieldValue(r, f.id) ? "✓" : "—"}</span>
+           : getDynamicFieldValue(r, f.id) || <span style={{ color: "var(--tx3)" }}>—</span>}
+        </td>
+      ))}
       <td>
         <div style={{ display: "flex", gap: 4 }}>
           <button className="btn btn-info btn-sm" style={{ height: 32, padding: "0 8px" }} onClick={() => setEditRec(r)}><Ic d={I.edit} s={12} /></button>
@@ -284,8 +274,11 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
     return (
       <thead><tr>
         <th>#</th>
-        <th style={{ width: 34 }}><input type="checkbox" checked={scope.length>0 && scope.every(r=>sel.has(r.id))} onChange={e => { if (e.target.checked) setSel(p => new Set([...p, ...scope.map(r=>r.id)])); else setSel(p => { const n = new Set(p); scope.forEach(r => n.delete(r.id)); return n; }); }} /></th>{allF.map(f => <th key={f.id}>{f.label}</th>)}
-        {showCust && <th>Müşteri</th>}<th>Kaydeden</th><th>Saat</th><th></th>
+        <th style={{ width: 34 }}><input type="checkbox" checked={scope.length>0 && scope.every(r=>sel.has(r.id))} onChange={e => { if (e.target.checked) setSel(p => new Set([...p, ...scope.map(r=>r.id)])); else setSel(p => { const n = new Set(p); scope.forEach(r => n.delete(r.id)); return n; }); }} /></th>
+        <th>Barkod</th>
+        {showCust && <th>Müşteri</th>}<th>Açıklama</th><th>Kaydeden</th><th>Saat</th>
+        {dynamicF.map(f => <th key={f.id}>{f.label}</th>)}
+        <th></th>
       </tr></thead>
     );
   };
@@ -314,13 +307,13 @@ export default function DataPage({ fields, records, onDelete, onEdit, onExport, 
       )}
       {sel.size > 0 && (
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-          <button className="btn btn-danger btn-full" onClick={() => {
+          <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => {
             if (!window.confirm(`Seçili ${sel.size} kayıt silinecek. Onaylıyor musunuz?`)) return;
-            Array.from(sel).forEach(id => onDelete(id));
+            onDelete(Array.from(sel));
             clearSel();
           }}><Ic d={I.trash} s={15} /> Seçilenleri Sil ({sel.size})</button>
           {settings.allowExport && (
-            <button className="btn btn-ok btn-full" onClick={() => { onExport("xlsx", Array.from(sel)); clearSel(); }}><Ic d={I.xlsx} s={15} /> Seçileni Excel</button>
+            <button className="btn btn-ok" style={{ flex: 1 }} onClick={() => { onExport("xlsx", Array.from(sel)); clearSel(); }}><Ic d={I.xlsx} s={15} /> Seçileni Excel</button>
           )}
         </div>
       )}

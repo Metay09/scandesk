@@ -51,7 +51,6 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
 
   const [editDupRec, setEditDupRec] = useState(null);
   const [inheritModal, setInheritModal] = useState(false);
-  const recentRef = useRef(new Map());
   const onBarcodeRef = useRef(null);
   const expectedBarcodeLength = useRef(null);
 
@@ -83,8 +82,9 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
 
   const { autoSave, addDetailAfterScan, vibration, beep, recentLimit = 10 } = scanSettings;
 
-  // Admin: vardiya seçebilir; normal kullanıcı: saate göre otomatik
+  // Admin: vardiya ve tarih seçebilir; normal kullanıcı: saate göre otomatik
   const [adminShift, setAdminShift] = useState(() => getCurrentShift());
+  const [adminDate, setAdminDate] = useState(() => fmtDate());
   const [userShift, setUserShift] = useState(() => getCurrentShift());
 
   // Update user shift periodically for non-admin users
@@ -97,7 +97,7 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
   }, [isAdmin]);
 
   const currentShift = isAdmin ? adminShift : userShift;
-  const currentShiftDate = getShiftDate(undefined, currentShift);
+  const currentShiftDate = isAdmin ? adminDate : getShiftDate(undefined, currentShift);
 
   // Reset expected barcode length when shift changes
   useEffect(() => {
@@ -157,7 +157,7 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
     const rDate = deriveShiftDate(r);
     return rBc === bc && rShift === String(currentShift ?? "") && rDate === currentShiftDate;
   });
-  const validateBarcodeForSave = useCallback((bc, { markUsed = true } = {}) => {
+  const validateBarcodeForSave = useCallback((bc) => {
     if (!bc) {
       return { ok: false, msg: null };
     }
@@ -181,20 +181,10 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
       }
     }
 
-    // Debounce check
-    const now = Date.now();
-    const last = recentRef.current.get(bc);
-    if (last && (now - last) < (scanSettings.scanDebounceMs || 800)) {
-      return { ok: false, msg: "⚠ Çift okuma engellendi" };
-    }
-    if (markUsed) {
-      recentRef.current.set(bc, now);
-    }
-
     // Duplicate check
     const ex = findExistingRec(bc);
     if (ex) {
-      return { ok: false, msg: "⚠ Bu barkod bu vardiyada zaten var", dup: true, existingRecord: ex };
+      return { ok: false, msg: "Mükerrer kod kaydedilemez !", dup: true, existingRecord: ex };
     }
 
     return { ok: true, msg: null };
@@ -205,32 +195,58 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
       return false;
     }
     const bc = normalizeCode(code);
-    doSaveCode(bc, {});
+    doSaveCode(bc, undefined);
     return true;
   };
   onBarcodeRef.current = onBarcode;
 
   // Auto-save when barcode length matches expected length
-  // IMPORTANT: This useEffect must be placed AFTER onBarcode is defined
-  // to avoid Temporal Dead Zone (TDZ) errors in production builds
+  // Uses debounce to wait for typing/scanning to finish before checking
+  const autoSaveTimer = useRef(null);
   useEffect(() => {
-    if (!autoSave) return; // Auto-save must be enabled
-    if (!scanSettings.enforceBarcodeLengthMatch) return; // Length enforcement must be enabled
-    if (expectedBarcodeLength.current === null) return; // Expected length must be set
-    if (pendingBc) return; // Don't trigger if detail form is shown
-    if (addDetailAfterScan) return; // Don't trigger if detail form is configured
+    clearTimeout(autoSaveTimer.current);
+    if (!autoSave) return;
+    if (!scanSettings.enforceBarcodeLengthMatch) return;
+    if (expectedBarcodeLength.current === null) return;
+    if (pendingBc) return;
 
     const trimmedBarcode = barcode.trim();
-    if (!trimmedBarcode) return; // Empty barcode
-    if (trimmedBarcode.length !== expectedBarcodeLength.current) return; // Length doesn't match
+    if (!trimmedBarcode) return;
+    if (trimmedBarcode.length !== expectedBarcodeLength.current) return; // Wait silently until length matches
 
-    // All conditions met - trigger save flow
-    onBarcode(trimmedBarcode);
-  }, [barcode, autoSave, scanSettings.enforceBarcodeLengthMatch, expectedBarcodeLength, pendingBc, addDetailAfterScan, onBarcode]);
+    // Length matches - wait briefly then save
+    autoSaveTimer.current = setTimeout(() => {
+      if (addDetailAfterScan) {
+        const validation = validateBarcodeForSave(trimmedBarcode);
+        if (!validation.ok) {
+          if (validation.msg) toast(validation.msg, "var(--err)");
+          setBarcode("");
+          return;
+        }
+        setPendingBc(trimmedBarcode);
+      } else {
+        onBarcode(trimmedBarcode);
+      }
+    }, 550);
+
+    return () => clearTimeout(autoSaveTimer.current);
+  }, [barcode, autoSave, scanSettings.enforceBarcodeLengthMatch, pendingBc, addDetailAfterScan, onBarcode, validateBarcodeForSave, toast]);
 
   /* ── Save ── */
+  const requiredFields = fields.filter(f => f.id !== "barcode" && f.id !== "note" && f.required);
+
   const doSaveCode = useCallback((code, extrasOverride) => {
     const bc = (code || "").trim();
+
+    // Check required fields
+    const currentExtras = extrasOverride ?? extras;
+    const missing = requiredFields.filter(f => !currentExtras[f.id] && currentExtras[f.id] !== 0);
+    if (missing.length > 0) {
+      toast(`Zorunlu alanları doldurun: ${missing.map(f => f.label).join(", ")}`, "var(--err)");
+      setBarcode("");
+      scheduleFocus();
+      return;
+    }
 
     // Apply unified validation
     const validation = validateBarcodeForSave(bc);
@@ -241,15 +257,22 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
       }
       if (vibration && navigator.vibrate) navigator.vibrate([120, 80, 120]);
       if (beep) playBeep();
+      setBarcode("");
       scheduleFocus();
       return;
     }
     const now = new Date();
     const extraFields = fields.filter(f => f.id !== "barcode");
-    const dateStr = fmtDate(now);
     // Admin: seçilen vardiyayı kullan; normal kullanıcı: saate göre otomatik
     const shift = isAdmin ? adminShift : getCurrentShift();
-    const shiftDate = getShiftDate(now, shift);
+
+    // Admin farklı tarih seçtiyse, timestamp'i o tarihe göre oluştur
+    let recordTimestamp = now.toISOString();
+    if (isAdmin && adminDate !== fmtDate()) {
+      const [y, m, d] = adminDate.split("-").map(Number);
+      const adjusted = new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+      recordTimestamp = adjusted.toISOString();
+    }
 
     // Create customFields object for dynamic fields
     const customFields = {};
@@ -263,22 +286,16 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
     const row = {
       id: genId(),
       barcode: bc,
-      timestamp: now.toISOString(),
-      date: dateStr,
-      time: fmtTime(now),
+      timestamp: recordTimestamp,
       shift,
-      shiftDate,
       customer: customer || "",
       aciklama: aciklama || "",
       scanned_by: user.name,
       scanned_by_username: user.username,
-      synced: false,
       syncStatus: "pending",
       syncError: "",
       source: "scan",
       sourceRecordId: "",
-      inheritedFromShift: "",
-      createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
       customFields,
     };
@@ -286,7 +303,7 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
     onSave(row);
     setBarcode("");
     setPendingBc(null);
-    // Note: We don't clear extras here - sticky fields persist across scans
+    setExtras({});
     setFlash("saved");
     setTimeout(() => { setFlash("ready"); scheduleFocus(); }, 700);
     if (vibration && navigator.vibrate) navigator.vibrate([25, 15, 25]);
@@ -326,7 +343,7 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
           });
       }
     }
-  }, [customer, aciklama, extras, fields, user, onSave, onSyncUpdate, scheduleFocus, vibration, beep, integration, toast, isAdmin, adminShift, validateBarcodeForSave, addToSyncQueue]);
+  }, [customer, aciklama, extras, fields, user, onSave, onSyncUpdate, scheduleFocus, vibration, beep, integration, toast, isAdmin, adminShift, adminDate, validateBarcodeForSave, addToSyncQueue]);
 
   const doSave = useCallback(() => {
     if (pendingBc) doSaveCode(pendingBc, extras);
@@ -360,7 +377,6 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
     );
 
     const now = new Date();
-    const copyDateStr = getShiftDate(now, targetShift);
 
     toCopy.forEach(r => {
       // Create new record maintaining customFields structure
@@ -368,18 +384,12 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
         ...r,
         id: genId(),
         timestamp: now.toISOString(),
-        date: copyDateStr,
-        time: fmtTime(now),
         shift: targetShift,
-        shiftDate: copyDateStr,
         scanned_by: user.name,
         scanned_by_username: user.username,
         source: "shift_takeover",
         sourceRecordId: r.id, // Track which record this was copied from
-        inheritedFromShift: sourceShift, // Keep for backward compatibility
-        synced: false,
         syncStatus: "pending",
-        createdAt: now.toISOString(),
         updatedAt: now.toISOString(),
         // Preserve customFields
         customFields: r.customFields || {}
@@ -399,12 +409,13 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
   const handleKey = e => {
     if (e.key !== "Enter") return;
     e.preventDefault();
+    clearTimeout(autoSaveTimer.current);
     const bc = barcode.trim();
 
     // Show detail form if setting is enabled, otherwise proceed with save
     if (addDetailAfterScan && bc && !pendingBc) {
       // Validate before showing detail form
-      const validation = validateBarcodeForSave(bc, { markUsed: false });
+      const validation = validateBarcodeForSave(bc);
       if (!validation.ok) {
         // Only show warning - user can manually edit via recent scans list
         if (validation.msg) toast(validation.msg, "var(--err)");
@@ -461,7 +472,16 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
           border: "1.5px solid var(--brd)",
           borderRadius: 8,
           padding: "4px 10px"
-        }}>{currentShiftDate}</span>
+        }}>
+          {isAdmin ? (
+            <input
+              type="date"
+              value={adminDate}
+              onChange={e => setAdminDate(e.target.value)}
+              style={{ border: "none", background: "transparent", color: "var(--tx)", fontWeight: 600, fontSize: 12, fontFamily: "inherit", outline: "none" }}
+            />
+          ) : currentShiftDate}
+        </span>
         <span style={{ color: "var(--tx3)", fontFamily: "var(--mono)", fontSize: 11 }}>{fmtTime()}</span>
       </div>
 
@@ -511,6 +531,24 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
         />
       </div>
 
+      {/* Zorunlu alanlar - hızlı okutmada inline göster */}
+      {autoSave && requiredFields.length > 0 && (
+        <div style={{ marginBottom: 8 }}>
+          {requiredFields.map(f => (
+            <div key={f.id} className="cust-bar">
+              <label className="lbl" style={{ marginBottom: 0, fontSize: 12, color: "var(--err)" }}>{f.label} *</label>
+              <div style={{ flex: 1, border: `2px solid var(--err)`, borderRadius: 10 }}>
+                <FieldInput
+                  field={f}
+                  value={extras[f.id] || ""}
+                  onChange={(v) => setExtras(p => ({ ...p, [f.id]: v }))}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Status */}
       <div className={`status-bar ${flash === "saved" ? "s-saved" : "s-ready"}`}>
         {flash === "saved" ? <><Ic d={I.check} s={16} /> Kaydedildi!</>
@@ -534,7 +572,21 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
       </div>
 
       {!autoSave && (
-        <button className="btn btn-ok btn-full btn-lg" style={{ marginBottom: 10 }} onClick={doSave}>
+        <button className="btn btn-ok btn-full btn-lg" style={{ marginBottom: 10 }} onClick={() => {
+          const bc = barcode.trim();
+          if (addDetailAfterScan && bc && !pendingBc) {
+            const validation = validateBarcodeForSave(bc);
+            if (!validation.ok) {
+              if (validation.msg) toast(validation.msg, "var(--err)");
+              if (vibration && navigator.vibrate) navigator.vibrate([120, 80, 120]);
+              if (beep) playBeep();
+              return;
+            }
+            setPendingBc(bc);
+            return;
+          }
+          doSave();
+        }}>
           <Ic d={I.save} s={20} /> Kaydet
         </button>
       )}
@@ -570,14 +622,14 @@ export default function ScanPage({ fields, onSave, onEdit, onSyncUpdate, records
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <div className="bc" style={{ fontWeight: 900 }}>{r.barcode}</div>
-                        {(r.source === "shift_takeover" || r.inheritedFromShift) && (
+                        {r.source === "shift_takeover" && (
                           <span style={{ fontSize: 9, color: 'var(--tx3)', background: 'var(--s2)', border: '1px solid var(--brd)', borderRadius: 4, padding: '1px 5px', whiteSpace: 'nowrap' }}>
                             devralındı
                           </span>
                         )}
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 2 }}>
-                        {(r.scanned_by || '—')} · {(r.customer || '—')} &nbsp; {r.time || ''}
+                        {(r.scanned_by || '—')} · {(r.customer || '—')} &nbsp; {new Date(r.timestamp).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}
                         {/* Show custom field preview if available */}
                         {r.customFields && Object.keys(r.customFields).length > 0 && (
                           <span style={{ marginLeft: 8, opacity: 0.7 }}>

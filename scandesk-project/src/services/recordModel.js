@@ -13,21 +13,15 @@ export const FIXED_FIELDS = [
   'id',
   'barcode',
   'timestamp',
-  'date',
-  'time',
   'shift',
-  'shiftDate',
   'customer',
   'aciklama',
   'scanned_by',
   'scanned_by_username',
-  'synced',
   'syncStatus',
   'syncError',
   'source',
   'sourceRecordId',
-  'inheritedFromShift', // DEPRECATED: Kept for backward compatibility only. Use 'source' + 'sourceRecordId' instead.
-  'createdAt',
   'updatedAt'
 ];
 
@@ -43,42 +37,30 @@ const LEGACY_DYNAMIC_FIELDS = ['qty', 'note'];
 // id                        →  id
 // barcode                   →  barcode
 // timestamp                 →  timestamp
-// date                      →  date
-// time                      →  time
 // shift                     →  shift
-// shiftDate                 →  shift_date
 // customer                  →  customer
 // aciklama                  →  aciklama
 // scanned_by                →  scanned_by
 // scanned_by_username       →  scanned_by_username
-// synced                    →  synced
 // syncStatus                →  sync_status
 // syncError                 →  sync_error
 // source                    →  source
 // sourceRecordId            →  source_record_id
-// inheritedFromShift        →  inherited_from_shift (deprecated)
-// createdAt                 →  created_at
 // updatedAt                 →  updated_at
 // customFields              →  custom_fields (JSONB)
 const FIELD_TO_DB_MAPPING = {
   'id': 'id',
   'barcode': 'barcode',
   'timestamp': 'timestamp',
-  'date': 'date',
-  'time': 'time',
   'shift': 'shift',
-  'shiftDate': 'shift_date',
   'customer': 'customer',
   'aciklama': 'aciklama',
   'scanned_by': 'scanned_by',
   'scanned_by_username': 'scanned_by_username',
-  'synced': 'synced',
   'syncStatus': 'sync_status',
   'syncError': 'sync_error',
   'source': 'source',
   'sourceRecordId': 'source_record_id',
-  'inheritedFromShift': 'inherited_from_shift',
-  'createdAt': 'created_at',
   'updatedAt': 'updated_at'
 };
 
@@ -113,7 +95,6 @@ export function normalizeRecord(record, fields = []) {
   if (!normalized.syncStatus) normalized.syncStatus = 'pending';
   if (!normalized.syncError) normalized.syncError = '';
   if (!normalized.source) normalized.source = 'scan';
-  if (!normalized.createdAt && record.timestamp) normalized.createdAt = record.timestamp;
   if (!normalized.updatedAt && record.timestamp) normalized.updatedAt = record.timestamp;
 
   // Initialize customFields

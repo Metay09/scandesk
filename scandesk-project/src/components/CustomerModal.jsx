@@ -45,12 +45,12 @@ export default function CustomerModal({ customers, onClose, onAdd, onRemove, can
           <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "var(--tx)" }}>{c}</span>
           <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>
             <button className={`btn btn-sm ${isSelected ? "btn-info" : "btn-ghost"}`} style={{ height: 30, padding: "0 10px" }}
-              onClick={() => handleSelect(c)}>
+              onClick={(e) => { e.stopPropagation(); handleSelect(c); }}>
               <Ic d={I.check} s={12} /> Seç
             </button>
             {canManage && !isDefault && (
               <button className="btn btn-danger btn-sm" style={{ height: 30, padding: "0 8px" }}
-                onClick={() => onRemove?.(c)}>
+                onClick={(e) => { e.stopPropagation(); onRemove?.(c); }}>
                 <Ic d={I.del} s={13} />
               </button>
             )}

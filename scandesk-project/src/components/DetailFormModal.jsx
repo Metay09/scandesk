@@ -16,6 +16,15 @@ export default function DetailFormModal({ barcode, fields, extras, onExtrasChang
     }
   }, []);
 
+  const validateAndSave = () => {
+    const missing = fields.filter(f => f.required && !extras[f.id] && extras[f.id] !== 0);
+    if (missing.length > 0) {
+      alert(`Zorunlu alanları doldurun: ${missing.map(f => f.label).join(", ")}`);
+      return;
+    }
+    onSave();
+  };
+
   // Handle Enter key navigation between fields
   const handleFieldKeyDown = (e, fieldIndex) => {
     if (e.key === "Enter") {
@@ -26,14 +35,14 @@ export default function DetailFormModal({ barcode, fields, extras, onExtrasChang
         nextInput?.focus();
       } else {
         // Last field - save
-        onSave();
+        validateAndSave();
       }
     }
   };
 
   const footer = (
     <>
-      <button className="btn btn-ok" style={{ flex: 1 }} onClick={onSave}>
+      <button className="btn btn-ok" style={{ flex: 1 }} onClick={validateAndSave}>
         <Ic d={I.save} s={16} /> Kaydet
       </button>
       <button className="btn btn-ghost" style={{ width: 88 }} onClick={onClose}>İptal</button>

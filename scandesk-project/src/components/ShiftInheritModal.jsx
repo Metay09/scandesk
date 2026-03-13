@@ -411,7 +411,7 @@ export default function ShiftInheritModal({ currentShift, currentUser, records, 
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div className="bc" style={{ fontWeight: 800 }}>{r.barcode}</div>
                         <div style={{ fontSize: 11, color: "var(--tx3)" }}>
-                          {r.customer || "—"} · {r.time || ""}
+                          {r.customer || "—"} · {new Date(r.timestamp).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}
                         </div>
                       </div>
                     </label>

@@ -53,14 +53,6 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
             <option value="0">Full</option>
           </select>
         </Row>
-        <Row icon={I.qr} label="Tarama Hızı" sub="Aynı barkodu art arda okumayı geciktirir">
-          <select value={String(settings.scanDebounceMs || 800)} onChange={e => set('scanDebounceMs', Number(e.target.value) || 800)} style={{ height: 34, borderRadius: 10, padding: '0 10px', background: 'var(--s2)', color: 'var(--tx)', border: '1.5px solid var(--brd)' }}>
-            <option value="300">Hızlı (300ms)</option>
-            <option value="500">500ms</option>
-            <option value="800">Varsayılan (800ms)</option>
-            <option value="1200">Yavaş (1200ms)</option>
-          </select>
-        </Row>
         <Row icon={I.barcode} label="Barkod Uzunluk Kontrolü" sub="İlk okutulan barkod uzunluğu ile devam eder, yanlış okumayı önler"><Toggle value={settings.enforceBarcodeLengthMatch} onChange={v => set("enforceBarcodeLengthMatch", v)} /></Row>
       </div>
 
@@ -85,7 +77,6 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
                   onChange={e => setRangeStart(e.target.value)}
                   style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: rangeStart ? "var(--tx)" : "var(--tx2)", border: "1.5px solid var(--brd)", fontSize: 12 }}
                 />
-                <div style={{ fontSize: 10, color: "var(--tx2)", marginTop: 3, paddingLeft: 2 }}>ör: 01.01.2026 04:27</div>
               </div>
               <div style={{ flex: 1 }}>
                 <input
@@ -94,7 +85,6 @@ export default function SettingsPage({ settings, setSettings, integration, setIn
                   onChange={e => setRangeEnd(e.target.value)}
                   style={{ width: "100%", height: 40, borderRadius: 10, padding: "0 10px", background: "var(--s2)", color: rangeEnd ? "var(--tx)" : "var(--tx2)", border: "1.5px solid var(--brd)", fontSize: 12 }}
                 />
-                <div style={{ fontSize: 10, color: "var(--tx2)", marginTop: 3, paddingLeft: 2 }}>ör: 01.02.2026 04:27</div>
               </div>
             </div>
             <button className="btn btn-danger" disabled={!rangeStart || !rangeEnd} onClick={() => {

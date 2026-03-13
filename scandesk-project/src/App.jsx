@@ -9,7 +9,7 @@ import { INITIAL_USERS, INITIAL_SETTINGS, INITIAL_FIELDS, DEFAULT_CUSTS } from "
 import { isNative, loadState, saveState } from "./services/storage";
 import { getCurrentShift, pad2, deriveShiftDate, getShiftDate, getShiftEndTime } from "./utils";
 import { normalizeRecord, migrateRecords } from "./services/recordModel";
-import { sheetsUpdate, sheetsDelete, postgresApiInsert, postgresApiUpdate, postgresApiDelete, syncRecordToSheets } from "./services/integrations";
+import { sheetsUpdate, sheetsDelete, sheetsDeleteBulk, postgresApiInsert, postgresApiUpdate, postgresApiDelete, syncRecordToSheets } from "./services/integrations";
 import { createQueueItem, addToQueue, removeFromQueue, getPendingItems, getRetryableItems, markAsProcessing, markAsFailed, getQueueStats } from "./services/syncQueue";
 import { toDbPayload } from "./services/recordModel";
 import { useToast } from "./hooks/useToast";
@@ -385,46 +385,34 @@ export default function App() {
       if (r.id !== id) return r;
       return {
         ...r,
-        synced: success,
         syncStatus: success ? "synced" : "failed",
         syncError: error || ""
       };
     }));
   }, []);
-  const handleDelete = id => {
-    const record = records.find(r => r.id === id);
-    setRecords(p => p.filter(r => r.id !== id));
-    setLastSaved(p => (p && p.id === id ? null : p));
-    toast("Kayıt silindi", "var(--err)");
+  const handleDelete = (idOrIds) => {
+    const ids = Array.isArray(idOrIds) ? idOrIds : [idOrIds];
+    const idSet = new Set(ids);
+    const deletedRecords = records.filter(r => idSet.has(r.id));
+    setRecords(p => p.filter(r => !idSet.has(r.id)));
+    setLastSaved(p => (p && idSet.has(p.id) ? null : p));
+    toast(ids.length === 1 ? "Kayıt silindi" : `${ids.length} kayıt silindi`, "var(--err)");
 
-    // Sync deletion to PostgreSQL if integration is active
-    if (integration.active && integration.type === "postgres_api" && record) {
-      // Try to sync immediately
-      postgresApiDelete(integration.postgresApi, id)
-        .then(() => {
-          // Success - no need to update sync status as record is already deleted
-        })
-        .catch(err => {
-          // Failed - add to queue for retry
-          addToSyncQueue("delete", id, record);
-          toast("PostgreSQL silme başarısız, kuyruğa eklendi", "var(--acc)");
-        });
+    // Sync deletions to PostgreSQL if integration is active
+    if (integration.active && integration.type === "postgres_api") {
+      ids.forEach(id => {
+        const record = deletedRecords.find(r => r.id === id);
+        postgresApiDelete(integration.postgresApi, id)
+          .catch(err => {
+            if (record) addToSyncQueue("delete", id, record);
+          });
+      });
     }
 
-    // Sync deletion to Google Sheets if integration is active
+    // Sync deletions to Google Sheets if integration is active
     if (integration.active && integration.type === "gsheets") {
-      // Note: no-cors fetch returns opaque response - cannot detect server errors
-      // Apps Script will delete the row with matching id
-      sheetsDelete(integration.gsheets, id)
-        .then(() => {
-          // Request sent successfully (but server response unknown due to no-cors)
-          // No need to update sync status as record is already deleted locally
-        })
-        .catch(e => {
-          // Network error or request failed to send
-          // Record already deleted locally, just log the error
-          toast("Sheets silme hatası: " + e.message, "var(--err)");
-        });
+      sheetsDeleteBulk(integration.gsheets, ids)
+        .catch(e => console.error("Sheets silme hatası:", e));
     }
   };
   const handleEdit   = r  => {
@@ -654,9 +642,10 @@ export default function App() {
 
     // Export includes system fields for full data preservation
     const hdr = [
-      "ID", "Barkod", ...ef.map(f => f.label), "Müşteri", "Açıklama", "Kaydeden", "Kullanıcı Adı",
-      "Tarih", "Saat", "Vardiya", "Vardiya Tarihi", "Timestamp",
-      "Senkronize", "Senkronizasyon Durumu", "Senkronizasyon Hatası", "Kaynak", "Kaynak Kayıt ID", "Devralınan Vardiya", "Oluşturulma", "Güncellenme"
+      "ID", "Barkod", "Müşteri", "Açıklama", "Kaydeden", "Kullanıcı Adı",
+      "Tarih", "Saat", "Vardiya",
+      "Kaynak", "Kaynak Kayıt ID", "Güncellenme", "Senkronizasyon Durumu", "Senkronizasyon Hatası",
+      ...ef.map(f => f.label)
     ];
 
     // Helper to safely get field value while preserving data types
@@ -683,17 +672,16 @@ export default function App() {
         const d = new Date(r.timestamp);
         const isValidDate = !Number.isNaN(d.getTime());
 
-        // Use ISO 8601 standard formats for dates/times
-        // timestamp: ISO 8601 full format (already stored as ISO)
-        // date: YYYY-MM-DD
-        // time: HH:MM:SS
-        const dateOut = r.shiftDate || (isValidDate ? d.toISOString().slice(0, 10) : "");
-        const timeOut = isValidDate ? d.toISOString().slice(11, 19) : "";
+        // Use local time for date/time display
+        // date: YYYY-MM-DD (local)
+        // time: HH:MM:SS (local)
+        const pad = (n) => String(n).padStart(2, '0');
+        const dateOut = isValidDate ? `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}` : "";
+        const timeOut = isValidDate ? `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` : "";
 
         return [
           safeValue(r.id),
           safeValue(r.barcode),
-          ...ef.map(f => safeValue(getFieldValue(r, f.id))),
           safeValue(r.customer),
           safeValue(r.aciklama),
           safeValue(r.scanned_by),
@@ -701,16 +689,12 @@ export default function App() {
           dateOut,
           timeOut,
           safeValue(r.shift),
-          safeValue(r.shiftDate),
-          safeValue(r.timestamp),
-          safeValue(r.synced),
-          safeValue(r.syncStatus),
-          safeValue(r.syncError),
           safeValue(r.source),
           safeValue(r.sourceRecordId),
-          safeValue(r.inheritedFromShift),
-          safeValue(r.createdAt),
-          safeValue(r.updatedAt)
+          safeValue(r.updatedAt),
+          safeValue(r.syncStatus),
+          safeValue(r.syncError),
+          ...ef.map(f => safeValue(getFieldValue(r, f.id)))
         ];
       } catch (err) {
         console.error("Error processing record:", r, err);

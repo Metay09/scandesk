@@ -51,13 +51,21 @@ export async function sheetsUpdate(cfg, headers, row) {
   });
 }
 
-// Delete record from Google Sheets by id
-// Sends action: "delete" with the record id
+// Delete a single record from Google Sheets by id
 export async function sheetsDelete(cfg, id) {
   await fetch(cfg.scriptUrl, {
     method: "POST", mode: "no-cors",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "delete", id }),
+  });
+}
+
+// Delete multiple records from Google Sheets in a single request
+export async function sheetsDeleteBulk(cfg, ids) {
+  await fetch(cfg.scriptUrl, {
+    method: "POST", mode: "no-cors",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "delete", ids }),
   });
 }
 
@@ -69,7 +77,6 @@ export async function syncRecordToSheets(cfg, record, fields) {
   const ef = fields.filter(f => f.id !== "barcode");
   const headers = [
     "Barkod",
-    ...ef.map(f => f.label),
     "Müşteri",
     "Açıklama",
     "Kaydeden",
@@ -77,20 +84,16 @@ export async function syncRecordToSheets(cfg, record, fields) {
     "Tarih",
     "Saat",
     "Vardiya",
-    "Vardiya Tarihi",
     "Kaynak",
     "Kaynak Kayıt ID",
-    "Senkronizasyon Durumu",
-    "Senkronizasyon Hatası",
-    "Oluşturulma",
-    "Güncellenme"
+    "Güncellenme",
+    ...ef.map(f => f.label)
   ];
 
   const timestamp = new Date(record.timestamp);
   const rowArr = [
     record.id,                                          // ID for upsert (not in headers, added by Apps Script)
     record.barcode,
-    ...ef.map(f => record.customFields?.[f.id] ?? ""),
     record.customer || "",
     record.aciklama || "",
     record.scanned_by,
@@ -98,13 +101,10 @@ export async function syncRecordToSheets(cfg, record, fields) {
     timestamp.toLocaleDateString("tr-TR"),
     timestamp.toLocaleTimeString("tr-TR"),
     record.shift || "",
-    record.shiftDate || "",
     record.source || "",
     record.sourceRecordId || "",
-    record.syncStatus || "",
-    record.syncError || "",
-    record.createdAt || "",
-    record.updatedAt || ""
+    record.updatedAt || "",
+    ...ef.map(f => record.customFields?.[f.id] ?? "")
   ];
 
   // Use sheetsUpdate for upsert behavior (Apps Script handles both create and update)
